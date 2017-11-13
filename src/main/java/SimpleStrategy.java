@@ -1,63 +1,93 @@
 import model.*;
+import org.jcp.xml.dsig.internal.dom.DOMUtils;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
 import java.util.stream.Stream;
 
 public final class SimpleStrategy implements Strategy {
-    private final Map<Long, VehicleTick> vehiclesById = new HashMap<>();
+    private final Map<Long, VehicleEx> vehiclesById = new HashMap<>();
     private Player me;
     private Queue<MoveBuild> moves = new LinkedList<>();
+    private double committedMoves = 0;
 
-    private int G1 = 1;
-    private int G2 = 2;
+    private int G1T = 11;
+    private int G1A = 12;
+    private int G1F = 13;
+    private int G1H = 14;
+    private int G1I = 15;
+
+    private int G2T = 21;
+    private int G2A = 22;
+    private int G2F = 23;
+    private int G2H = 24;
+    private int G2I = 25;
+
     private boolean initialization = false;
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
+        if (committedMoves/world.getTickIndex() >= 5) return;
         this.me = me;
         initializeVehicles(world);
 
         MoveBuild nextMove = moves.poll();
         if (nextMove == null) {
             if (!initialization) {
-                Rect rectArrv = myARRV().reduce(new Rect(), Rect::update, Rect::combine);
-                Rect rectTank = myTANK().reduce(new Rect(), Rect::update, Rect::combine);
-                Rect rectFighter = myFIGHTER().reduce(new Rect(), Rect::update, Rect::combine);
-                Rect rectHelicopter = myHELICOPTER().reduce(new Rect(), Rect::update, Rect::combine);
-                Rect rectIfv = myIFV().reduce(new Rect(), Rect::update, Rect::combine);
-                moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setLeftHalf(rectArrv));
-                moves.add(new MoveBuild().setAction(ActionType.ADD_TO_SELECTION).setLeftHalf(rectTank));
-                moves.add(new MoveBuild().setAction(ActionType.ADD_TO_SELECTION).setLeftHalf(rectFighter));
-                moves.add(new MoveBuild().setAction(ActionType.ADD_TO_SELECTION).setLeftHalf(rectHelicopter));
-                moves.add(new MoveBuild().setAction(ActionType.ADD_TO_SELECTION).setLeftHalf(rectIfv));
-                moves.add(new MoveBuild().setAction(ActionType.ASSIGN).setGroup(G1));
+                Rect rectArrv = rectOfVehicles(myARRV());
+                Rect rectTank = rectOfVehicles(myTANK());
+                Rect rectFighter = rectOfVehicles(myFIGHTER());
+                Rect rectHelicopter = rectOfVehicles(myHELICOPTER());
+                Rect rectIfv = rectOfVehicles(myIFV());
 
-                moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setRightHalf(rectArrv));
-                moves.add(new MoveBuild().setAction(ActionType.ADD_TO_SELECTION).setRightHalf(rectTank));
-                moves.add(new MoveBuild().setAction(ActionType.ADD_TO_SELECTION).setRightHalf(rectFighter));
-                moves.add(new MoveBuild().setAction(ActionType.ADD_TO_SELECTION).setRightHalf(rectHelicopter));
-                moves.add(new MoveBuild().setAction(ActionType.ADD_TO_SELECTION).setRightHalf(rectIfv));
-                moves.add(new MoveBuild().setAction(ActionType.ASSIGN).setGroup(G2));
+                createGroup(G1A, rectArrv, Side.LEFT);
+                createGroup(G2A, rectArrv, Side.RIGHT); // brown
+
+                createGroup(G1T, rectTank, Side.LEFT);
+                createGroup(G2T, rectTank, Side.RIGHT); // red
+
+                createGroup(G1F, rectFighter, Side.LEFT); // yellow
+                createGroup(G2F, rectFighter, Side.RIGHT);
+
+                createGroup(G1H, rectHelicopter, Side.LEFT);
+                createGroup(G2H, rectHelicopter, Side.RIGHT);
+
+                createGroup(G1I, rectIfv, Side.LEFT); // orange
+                createGroup(G2I, rectIfv, Side.RIGHT);
+
                 initialization = true;
             } else {
-                move.setAction(ActionType.MOVE);
-                Rect g1Rect = rectOfVehileGroup(G1);
-                Rect g2Rect = rectOfVehileGroup(G2);
-                if ()
-                move.setGroup(ThreadLocalRandom.current().nextBoolean() ? G1 : G2);
+//                Rect[] rects1 = rectsOfVehicleGroup(G1A, G1F, G1H, G1I, G1T);
+//                Rect[] rects2 = rectsOfVehicleGroup(G2A, G2F, G2H, G2I, G2T);
 
-                move.setY(world.getHeight()/2);
-                move.setX(world.getWidth()/2);
+                 makeGroupsMove(world.getWidth(), 0,
+                        G2I);
             }
         } else {
+            committedMoves++;
             nextMove.setMove(move);
         }
     }
 
-    private void initializeVehicles(World world) {
+    void makeGroupsMove(double x, double y, int... ids) {
+        for (int id : ids) makeGroupMove(id, x, y);
+    }
+
+    void makeGroupMove(int id, double x, double y) {
+        moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setGroup(id));
+        moves.add(new MoveBuild().setAction(ActionType.MOVE).setY(y).setX(x));
+    }
+
+    void createGroup(int id, Rect rect, Side side) {
+        moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setHalf(rect, side));
+        moves.add(new MoveBuild().setAction(ActionType.ASSIGN).setGroup(id));
+    }
+
+    void initializeVehicles(World world) {
         for (Vehicle vehicle : world.getNewVehicles()) {
-            vehiclesById.put(vehicle.getId(), new VehicleTick(vehicle, world.getTickIndex()));
+            vehiclesById.put(vehicle.getId(), new VehicleEx(vehicle, world.getTickIndex()));
         }
 
         for (VehicleUpdate vu : world.getVehicleUpdates()) {
@@ -65,101 +95,118 @@ public final class SimpleStrategy implements Strategy {
                 vehiclesById.remove(vu.getId());
             } else {
                 vehiclesById.computeIfPresent(vu.getId(),
-                        (id, vehicleTick) -> new VehicleTick(vehicleTick, vu, world.getTickIndex()));
+                        (id, vehicleEx) -> new VehicleEx(vehicleEx, vu, world.getTickIndex()));
             }
         }
     }
 
-    Stream<VehicleTick> myTANK() {
-        return myVehicles().filter(vt -> vt.ofVehicleType(VehicleType.TANK));
+    Stream<VehicleEx> myTANK() { return myVehicleTyped(VehicleType.TANK); }
+    Stream<VehicleEx> myARRV() { return myVehicleTyped(VehicleType.ARRV); }
+    Stream<VehicleEx> myFIGHTER() {
+        return myVehicleTyped(VehicleType.FIGHTER);
+    }
+    Stream<VehicleEx> myHELICOPTER() {
+        return myVehicleTyped(VehicleType.HELICOPTER);
+    }
+    Stream<VehicleEx> myIFV() {
+        return myVehicleTyped(VehicleType.IFV);
+    }
+    Stream<VehicleEx> myVehicles() { return vehiclesById.values().stream().filter(VehicleEx::my); }
+    Stream<VehicleEx> enemyVehicles() { return vehiclesById.values().stream().filter(VehicleEx::enemy); }
+    Stream<VehicleEx> myVehicleTyped(VehicleType type) { return myVehicles().filter(vt -> vt.ofVehicleType(type)); }
+    Rect rectOfVehicles(Stream<VehicleEx> vhStream) { return vhStream.reduce(new Rect(), Rect::update, Rect::combine); }
+
+    Rect[] rectsOfVehicleGroup(int... ids) {
+        return myVehicles().reduce(new Rect[ids.length], (rects, vehicleEx) -> {
+            for (int i = 0; i < ids.length; i++)
+                if (vehicleEx.inGroup(ids[i]))
+                    rects[i].update(vehicleEx);
+            return rects;
+        }, (rl, rr) -> {
+            for (int i = 0; i < rl.length; i++)
+                rl[i] = rl[i].combine(rr[i]);
+            return rl;
+        });
     }
 
-    Stream<VehicleTick> myARRV() {
-        return myVehicles().filter(vt -> vt.ofVehicleType(VehicleType.ARRV));
-    }
-
-    Stream<VehicleTick> myFIGHTER() {
-        return myVehicles().filter(vt -> vt.ofVehicleType(VehicleType.FIGHTER));
-    }
-
-    Stream<VehicleTick> myHELICOPTER() {
-        return myVehicles().filter(vt -> vt.ofVehicleType(VehicleType.HELICOPTER));
-    }
-
-    Stream<VehicleTick> myIFV() {
-        return myVehicles().filter(vt -> vt.ofVehicleType(VehicleType.IFV));
-    }
-
-    Stream<VehicleTick> myVehicles() {
-        return vehiclesById.values().stream().filter(vt -> vt.vehicle.getPlayerId() == me.getId());
-    }
-
-    Stream<VehicleTick> enemyVehicles() {
-        return vehiclesById.values().stream().filter(vt -> vt.vehicle.getPlayerId() != me.getId());
-    }
-
-    Rect rectOfVehileGroup(int groupId) {
-        return myVehicles().filter(vh -> vh.groups.contains(groupId)).reduce(new Rect(), Rect::update, Rect::combine);
-    }
-
-    static class VehicleTick {
+    class VehicleEx {
         final Vehicle vehicle;
         final int tickIndex;
         Set<Integer> groups;
 
-        VehicleTick(Vehicle vehicle, int tickIndex) {
+        VehicleEx(Vehicle vehicle, int tickIndex) {
             this.vehicle = vehicle;
             this.tickIndex = tickIndex;
             this.groups = new HashSet<>();
-            for (Integer gid : vehicle.getGroups()) {
+            for (Integer gid : vehicle.getGroups())
                 this.groups.add(gid);
-            }
         }
 
-        VehicleTick(VehicleTick vehicleTick, VehicleUpdate vehicleUpdate, int tickIndex) {
-            this(new Vehicle(vehicleTick.vehicle, vehicleUpdate), tickIndex);
+        VehicleEx(VehicleEx vehicleEx, VehicleUpdate vehicleUpdate, int tickIndex) {
+            this(new Vehicle(vehicleEx.vehicle, vehicleUpdate), tickIndex);
         }
 
         boolean ofVehicleType(VehicleType type) {
             return vehicle.getType() == type;
         }
+
+        double getMinAttackRange() {
+            return Math.min(vehicle.getAerialAttackRange(), vehicle.getGroundAttackRange());
+        }
+
+        boolean my() {
+            return vehicle.getPlayerId() == me.getId();
+        }
+
+        boolean enemy() {
+            return vehicle.getPlayerId() == me.getId();
+        }
+
+        boolean inGroup(int id) {
+            return groups.contains(id);
+        }
     }
 
     static class Rect {
-        double l,t,b,r;
+        double l = Double.NaN,t = Double.NaN,b = Double.NaN,r = Double.NaN;
 
         Rect() {}
+        Rect(double l, double t, double b, double r) { this.l = l;this.t = t;this.b = b;this.r = r; }
+        Rect(Vehicle v) { this(v.getX(), v.getY(), v.getY(), v.getX()); }
 
-        Rect(double l, double t, double b, double r) {
-            this.l = l;
-            this.t = t;
-            this.b = b;
-            this.r = r;
-        }
-
-        Rect(Vehicle v) {
-            this(v.getX(), v.getY(), v.getY(), v.getX());
-        }
-
-        Rect update(VehicleTick vehicleTick) {
-            Vehicle vehicle = vehicleTick.vehicle;
-            l = Math.min(l, vehicle.getX());
-            r = Math.max(r, vehicle.getX());
-            t = Math.min(t, vehicle.getY());
-            b = Math.max(b, vehicle.getY());
+        Rect update(VehicleEx vehicleEx) {
+            Vehicle vehicle = vehicleEx.vehicle;
+            l = Math.min(Double.isNaN(l) ? Double.MAX_VALUE : l, vehicle.getX());
+            r = Math.max(Double.isNaN(r) ? Double.MIN_VALUE : r, vehicle.getX());
+            t = Math.min(Double.isNaN(t) ? Double.MAX_VALUE : t, vehicle.getY());
+            b = Math.max(Double.isNaN(b) ? Double.MIN_VALUE : b, vehicle.getY());
             return this;
         }
 
         Rect combine(Rect rect) {
-            l = Math.min(l, rect.l);
-            r = Math.max(r, rect.r);
-            t = Math.min(t, rect.t);
-            b = Math.max(b, rect.b);
+            l = Math.min(Double.isNaN(l) ? Double.MAX_VALUE : l, Double.isNaN(rect.l) ? Double.MAX_VALUE : rect.l);
+            r = Math.max(Double.isNaN(r) ? Double.MIN_VALUE : r, Double.isNaN(rect.r) ? Double.MIN_VALUE : rect.r);
+            t = Math.min(Double.isNaN(t) ? Double.MAX_VALUE : t, Double.isNaN(rect.t) ? Double.MAX_VALUE : rect.t);
+            b = Math.max(Double.isNaN(b) ? Double.MIN_VALUE : b, Double.isNaN(rect.b) ? Double.MIN_VALUE : rect.b);
             return this;
         }
 
         double square() {
             return Math.abs(r - l)*Math.abs(b - t);
+        }
+
+        double distanceTo(Rect rect) {
+            double x = rect.centerX() - centerX();
+            double y = rect.centerY() - centerY();
+            return x*x + y*y;
+        }
+
+        double centerX() {
+            return (l + r)/2;
+        }
+
+        double centerY() {
+            return (b + t)/2;
         }
     }
 
@@ -225,19 +272,14 @@ public final class SimpleStrategy implements Strategy {
             return dst;
         }
 
-        MoveBuild setLeftHalf(Rect rect) {
-            setLeft(rect.l);
-            setRight(rect.r/2);
-
-            setTop(rect.t);
-            setBottom(rect.b);
-
-            return this;
-        }
-
-        MoveBuild setRightHalf(Rect rect) {
-            setLeft(rect.r/2);
-            setRight(rect.r);
+        MoveBuild setHalf(Rect rect, Side side) {
+            if (side == Side.LEFT) {
+                setLeft(rect.l);
+                setRight((rect.l + rect.r) / 2);
+            } else {
+                setLeft((rect.l + rect.r) / 2);
+                setRight(rect.r);
+            }
 
             setTop(rect.t);
             setBottom(rect.b);
@@ -245,6 +287,8 @@ public final class SimpleStrategy implements Strategy {
             return this;
         }
     }
+
+    enum Side { LEFT, RIGHT }
 
     private static final Map<VehicleType, VehicleType[]> preferredTargetTypesByVehicleType;
     static {
