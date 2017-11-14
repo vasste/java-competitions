@@ -1,3 +1,4 @@
+import com.sun.org.apache.regexp.internal.RE;
 import model.*;
 
 import java.util.*;
@@ -10,19 +11,19 @@ public final class SimpleStrategy implements Strategy {
     private Queue<MoveBuild> moves = new LinkedList<>();
     private double committedMoves = 0;
 
-    private int G1T = 11;
-    private int G1A = 12;
-    private int G1F = 13;
-    private int G1H = 14;
-    private int G1I = 15;
-    int[] groups1 = new int[]{G1A, G1F, G1H, G1I, G1T};
+    private int G1T = 21;
+    private int G1A = 31;
+    private int G1F = 41;
+    private int G1H = 51;
+    private int G1I = 61;
+    int[] groups1 = new int[]{G1F, G1H, G1I, G1T, G1A};
 
-    private int G2T = 21;
-    private int G2A = 22;
-    private int G2F = 23;
-    private int G2H = 24;
-    private int G2I = 25;
-    int[] groups2 = new int[]{G1A, G1F, G1H, G1I, G1T};
+    private int G2T = 22;
+    private int G2A = 32;
+    private int G2F = 42;
+    private int G2H = 52;
+    private int G2I = 62;
+    int[] groups2 = new int[]{G2F, G2H, G2I, G2T, G2A};
 
     private boolean initialization = false;
 
@@ -59,35 +60,56 @@ public final class SimpleStrategy implements Strategy {
 
                 initialization = true;
             } else {
-                if (syncronizeGroupMove(groups1) || syncronizeGroupMove(groups2)) return;
+                if (synchronizeGroupMove(groups1) | synchronizeGroupMove(groups2)) {
+                    return;
+                }
 
-                makeGroupsMove(VehicleType.TANK, G1A, G2A);
+                makeGroupsMove(VehicleType.FIGHTER, G1A, G2A);
                 makeGroupsMove(VehicleType.TANK, G1T, G2T);
-                makeGroupsMove(VehicleType.FIGHTER, G1F, G2F);
-                makeGroupsMove(VehicleType.HELICOPTER, G1H, G2H);
+                makeGroupsMove(VehicleType.HELICOPTER, G1F, G2F);
+                makeGroupsMove(VehicleType.TANK, G1H, G2H);
                 makeGroupsMove(VehicleType.IFV, G1I, G2I);
             }
         } else {
             committedMoves++;
-            nextMove.setMove(world, move);
+            nextMove.setMove(move);
         }
     }
 
-    boolean syncronizeGroupMove(int[] groups) {
-        Rect[] rects = rectsOfVehicleGroup(groups);
-        boolean[] used = new boolean[groups.length];
-        boolean syncronizeRequired = false;
-        for (int i = 0; i < rects.length; i++) {
-            for (int j = 0; j < rects.length; j++) {
-                if (i > j && rects[i].distanceTo(rects[j]) > 200 && !used[i]) {
-                    moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setGroup(groups[i]));
-                    moves.add(new MoveBuild().setAction(ActionType.MOVE).setX(rects[j].centerX()).setY(rects[j].centerY()));
-                    used[i] = true;
-                    syncronizeRequired = true;
+    // G1F, G1H, G1I, G1T, G1A
+    boolean synchronizeGroupMove(int[] groups) {
+        Rect rect = rectOfVehicleGroup(groups);
+        if (rect.square() > 15_000) {
+            Rect src1 = rectOfVehicles(groupVehicles(groups[1]));
+            Rect dst1 = rectOfVehicles(groupVehicles(groups[2]));
+            Rect src2 = rectOfVehicles(groupVehicles(groups[0]));
+            Rect dst2 = rectOfVehicles(groupVehicles(groups[3]));
+            if (src1.distanceTo(dst1) > src2.distanceTo(dst2)) {
+                if (src2.distanceTo(dst2) < 50) {
+                    moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setGroup(groups[1]));
+                    moves.add(new MoveBuild().setAction(ActionType.MOVE).setDistanceToXY(src1, dst1.centerX(), dst1.centerY()));
+                } else {
+                    moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setGroup(groups[0]));
+                    moves.add(new MoveBuild().setAction(ActionType.MOVE).setDistanceToXY(src2, dst2.centerX(), dst2.centerY()));
+                }
+            } else {
+                if (src1.distanceTo(dst1) < 50) {
+                    moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setGroup(groups[0]));
+                    moves.add(new MoveBuild().setAction(ActionType.MOVE).setDistanceToXY(src2, dst2.centerX(), dst2.centerY()));
+                } else {
+                    moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setGroup(groups[1]));
+                    moves.add(new MoveBuild().setAction(ActionType.MOVE).setDistanceToXY(src1, dst1.centerX(), dst1.centerY()));
                 }
             }
+            if (src1.distanceTo(dst1) < 50 && src2.distanceTo(dst2) < 50) {
+                moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setGroup(groups[4]));
+                Rect src = rectOfVehicles(groupVehicles(groups[4]));
+                if (groups[4] == G2A) moves.add(new MoveBuild().setAction(ActionType.MOVE).setDistanceToXY(src, dst2.l, dst2.t));
+                else moves.add(new MoveBuild().setAction(ActionType.MOVE).setDistanceToXY(src, dst1.l, dst1.t));
+            }
+            return true;
         }
-        return syncronizeRequired;
+        return false;
     }
 
     void makeGroupsMove(double x, double y, int... ids) {
@@ -97,11 +119,14 @@ public final class SimpleStrategy implements Strategy {
     void makeGroupMove(int id, double x, double y) {
         moves.add(new MoveBuild().setAction(ActionType.CLEAR_AND_SELECT).setGroup(id));
         Rect rect = rectOfVehicles(groupVehicles(id));
-        if (rect.distanceTo(x, y) > 20) moves.add(new MoveBuild().setAction(ActionType.MOVE).setY(y).setX(x));
+        if (rect.distanceTo(x, y) > 20)
+            moves.add(new MoveBuild().setAction(ActionType.MOVE).setDistanceToXY(rect, x, y));
+        else
+            System.out.printf("");
     }
 
     void makeGroupsMove(VehicleType type, int... ids) {
-        Point2D closed = enemyVehiclesOfTypes(pTTByVT.get(type)).reduce(new Point2D(Double.MAX_VALUE, Double.MAX_VALUE),
+        Point2D closed = enemyVehicles().reduce(new Point2D(Double.MAX_VALUE, Double.MAX_VALUE),
                 (p, vehicleEx) -> p.min(new Point2D(vehicleEx.vehicle)), Point2D::min);
         makeGroupsMove(closed.x, closed.y, ids);
     }
@@ -156,6 +181,15 @@ public final class SimpleStrategy implements Strategy {
                 rl[i] = rl[i].combine(rr[i]);
             return rl;
         });
+    }
+
+    Rect rectOfVehicleGroup(int... ids) {
+        return myVehicles().reduce(new Rect(), (rect, vehicleEx) -> {
+            for (int i = 0; i < ids.length; i++)
+                if (vehicleEx.inGroup(ids[i]))
+                    rect.update(vehicleEx);
+            return rect;
+        }, Rect::combine);
     }
 
     class VehicleEx {
@@ -237,17 +271,17 @@ public final class SimpleStrategy implements Strategy {
         Rect update(VehicleEx vehicleEx) {
             Vehicle vehicle = vehicleEx.vehicle;
             l = Math.min(Double.isNaN(l) ? Double.MAX_VALUE : l, vehicle.getX());
-            r = Math.max(Double.isNaN(r) ? Double.MIN_VALUE : r, vehicle.getX());
+            r = Math.max(Double.isNaN(r) ? 0 : r, vehicle.getX());
             t = Math.min(Double.isNaN(t) ? Double.MAX_VALUE : t, vehicle.getY());
-            b = Math.max(Double.isNaN(b) ? Double.MIN_VALUE : b, vehicle.getY());
+            b = Math.max(Double.isNaN(b) ? 0 : b, vehicle.getY());
             return this;
         }
 
         Rect combine(Rect rect) {
             l = Math.min(Double.isNaN(l) ? Double.MAX_VALUE : l, Double.isNaN(rect.l) ? Double.MAX_VALUE : rect.l);
-            r = Math.max(Double.isNaN(r) ? Double.MIN_VALUE : r, Double.isNaN(rect.r) ? Double.MIN_VALUE : rect.r);
+            r = Math.max(Double.isNaN(r) ? 0 : r, Double.isNaN(rect.r) ? 0: rect.r);
             t = Math.min(Double.isNaN(t) ? Double.MAX_VALUE : t, Double.isNaN(rect.t) ? Double.MAX_VALUE : rect.t);
-            b = Math.max(Double.isNaN(b) ? Double.MIN_VALUE : b, Double.isNaN(rect.b) ? Double.MIN_VALUE : rect.b);
+            b = Math.max(Double.isNaN(b) ? 0 : b, Double.isNaN(rect.b) ? 0 : rect.b);
             return this;
         }
 
@@ -304,6 +338,11 @@ public final class SimpleStrategy implements Strategy {
         MoveBuild setBottom(double bottom) { this.bottom = bottom; return this; }
         MoveBuild setX(double x) { this.x = x; return this; }
         MoveBuild setY(double y) { this.y = y; return this; }
+        MoveBuild setDistanceToXY(Rect current, double x, double y) {
+            this.y = y - current.centerY();
+            this.x = x - current.centerX();
+            return this;
+        }
         MoveBuild setAngle(double angle) { this.angle = angle; return this; }
         MoveBuild setFactor(double factor) { this.factor = factor; return this; }
         MoveBuild setMaxSpeed(double maxSpeed) { this.maxSpeed = maxSpeed; return this; }
@@ -311,7 +350,7 @@ public final class SimpleStrategy implements Strategy {
         MoveBuild setVehicleType(VehicleType vehicleType) { this.vehicleType = vehicleType; return this; }
         MoveBuild setFacilityId(long facilityId) { this.facilityId = facilityId; return this; }
         MoveBuild setVehicleId(long vehicleId) { this.vehicleId = vehicleId; return this; }
-        Move setMove(World world, Move dst) {
+        Move setMove(Move dst) {
             dst.setGroup(group);
 
             dst.setLeft(left);
@@ -320,8 +359,8 @@ public final class SimpleStrategy implements Strategy {
             dst.setRight(right);
 
             dst.setAction(action);
-            dst.setX(world.getWidth() - x);
-            dst.setY(world.getHeight() - y);
+            dst.setX(x);
+            dst.setY(y);
 
             dst.setAngle(angle);
             dst.setFactor(factor);
@@ -350,10 +389,10 @@ public final class SimpleStrategy implements Strategy {
         pTTByVT.put(VehicleType.FIGHTER,
                 new VehicleType[] {VehicleType.HELICOPTER, VehicleType.FIGHTER});
         pTTByVT.put(VehicleType.HELICOPTER,
-                new VehicleType[] {VehicleType.TANK, VehicleType.ARRV});
+                new VehicleType[] {VehicleType.TANK, VehicleType.ARRV, VehicleType.IFV});
         pTTByVT.put(VehicleType.IFV,
                 new VehicleType[] {VehicleType.HELICOPTER, VehicleType.FIGHTER});
         pTTByVT.put(VehicleType.TANK,
-                new VehicleType[] {VehicleType.IFV, VehicleType.ARRV, VehicleType.TANK});
+                new VehicleType[] {VehicleType.ARRV, VehicleType.IFV});
     }
 }
