@@ -9,133 +9,69 @@ import static model.ActionType.*;
 import static model.VehicleType.*;
 
 public final class SimpleStrategy implements Strategy {
-    private final Map<Long, VeEx> vehiclesById = new HashMap<>();
-    private Player me;
-    private World world;
-    private Queue<MB> moves = new LinkedList<>();
-    private double committedMoves = 0;
-    private static double EPS = 0.000001;
-
-    private int GT = 1;
-    private int GA = 2;
-    private int GH = 3;
-    private int GI = 4;
-    private int GF = 5;
-    private int GG = 10;
-
-    private int GFH = 0;
-    private int GA2 = 7;
-    private int GG1 = 8;
-    private int GG2 = 9;
-
-    private Random random;
-
-    enum GS {I, G, GG, M}
-    GS gameState = GS.I;
-    enum GGS { I, INX, INY, NX, NY, F }
-    GGS[] ggs = new GGS[]{GGS.I, GGS.I, GGS.I};
-    double minGSpeed = 0;
-    double minASpeed = 0;
-
-    private Deque<MB> agm = new LinkedList<>();
-    private Deque<MB> aim = new LinkedList<>();
-
-    P bfs(int[][] field, int si, int sj, int dgid) {
-        Queue<P> qp = new LinkedList<>();
-        qp.add(new P(si, sj, null));
-        while (!qp.isEmpty()) {
-            P ij = qp.poll();
-            int i = ij.i;
-            int j = ij.j;
-            if (field[i][j] == dgid) {
-                return ij;
-            }
-            if (cij(i,j,i+1,j,field, dgid)) qp.add(new P(i+1,j, ij));
-            if (cij(i,j,i,j+1,field, dgid)) qp.add(new P(i,j+1, ij));
-            if (cij(i,j,i-1,j,field, dgid)) qp.add(new P(i-1,j, ij));
-            if (cij(i,j,i,j-1,field, dgid)) qp.add(new P(i,j-1, ij));
-        }
-        return null;
-    }
-
-    boolean cij(int si, int sj, int i, int j, int[][] field, int dgid) {
-        if (i >= 3 || i < 0 || j < 0 || j >=3) return false;
-        if (field[i][j] == dgid || field[i][j] == 0) return true;
-        return false;
-    }
-
-    boolean fM(int gid, int si, int sj, int di, int dj, Rect rf, Deque<MB> deque) {
-        Rect rect = rf.square(di, dj, 9);
-        deque.add(MB.c(MOVE).dfCToXY(rf.square(si, sj, 9), rect.cX(), rect.cY()));
-        deque.addLast(MB.c(CLEAR_AND_SELECT).group(gid));
-        return true;
-    }
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
         this.me = me;
         this.world = world;
         Map<VehicleType, IA> vu = initV(world);
-        if (committedMoves/world.getTickIndex() >= 0.195) return;
+        if (committedMoves/world.getTickIndex() >= 0.199) return;
         if (random == null) random = new Random(game.getRandomSeed());
 
         MB nextMove = moves.poll();
         if (nextMove == null) {
             switch (gameState) {
                 case I:
-                    ctG(GH, HELICOPTER, 1.4);
-                    ctG(GF, FIGHTER, 1.4);
-
                     ctG(GT, TANK, 1.6);
                     ctG(GA, ARRV, 1.6);
                     ctG(GI, IFV, 1.6);
-                    Rect[] rs = sOfVT(ARRV, IFV, TANK, HELICOPTER, FIGHTER);
-                    Rect order = new Rect();
-                    int[] groups = new int[]{GA,GI,GT,GH,GF};
-                    for (Rect r : rs) order = order.combine(r);
-                    int[][] field = new int[3][3];
-                    int[] aij = null;
-                    int[] iij = null;
-                    for (int i = 0; i < field.length; i++) {
-                        for (int j = 0; j < field.length; j++) {
-                            for (int k = 0; k < rs.length - 2; k++) {
-                                if (rs[k].cX() >= order.l + j*order.linew()/3 && rs[k].cX() <= order.l + (j+1)*order.linew()/3 &&
-                                    rs[k].cY() >= order.t + i*order.lineh()/3 && rs[k].cY() <= order.t + (i+1)*order.linew()/3) {
-                                    field[i][j] = groups[k];
-                                    if (groups[k] == GI) iij = new int[]{i,j};
-                                    if (groups[k] == GA) aij = new int[]{i,j};
-                                }
-                            }
-                        }
-                    }
-                    P ap = bfs(field, aij[0], aij[1], GT);
-                    while (ap.prev != null) fM(GA, ap.i, aij);
-
-                    P ip = bfs(field, iij[0], iij[1], GT);
+                    ctG(GH, HELICOPTER, 1.4);
+                    ctG(GF, FIGHTER, 1.4);
                     gameState = GS.G;
                     break;
                 case G:
+                    if (sum(vu, FIGHTER, HELICOPTER).zero()) gatherAG(GF, GH, 4, ggs, 0, GGS.INX);
+                    if (sum(vu, ARRV, TANK, IFV).zero()) {
+                        setupGroupingMoves();
+                        gameState = GS.GG;
+                    }
+                    break;
+                case GG:
                     boolean fh = false, at = false, it = false;
+                    if (sum(vu, ARRV, TANK).zero()) {
+                        MB mb = agm.pollLast();
+                        if (mb != null) {
+                            moves.add(mb);
+                            moves.add(agm.pollLast());
+                        }
+                        else
+                            if (ggs[2] == GGS.F) at = gatherAG(GA, GT, 5, ggs, 1, null);
+                    }
+                    if (sum(vu, IFV, TANK).zero()) {
+                        MB mb = igm.pollLast();
+                        if (mb != null) {
+                            moves.add(mb);
+                            moves.add(igm.pollLast());
+                        }
+                        else
+                            if (ggs[1] == GGS.F) it = gatherAG(GI, GT, 5, ggs, 2, null);
+                    }
                     if (sum(vu, FIGHTER, HELICOPTER).zero()) {
-                        fh = gatherAG(GF, GH, 4, ggs, 0);
+                        fh = gatherAG(GF, GH, 4, ggs, 0, GGS.INX);
                         if (fh && sum(vu, TANK).zero()) {
                             Rect srs = GFH == 0 ? OfVG(GF, GH) : OfVG(GFH);
                             Rect drs = OfVG(GT);
                             if (GFH == 0) ctGFH(GFH = 6);
-                            fh = srs.dfct(drs) <= 0.5;
-                            if (!fh) mkGM(GFH, srs, drs.cX(), drs.cY(), minASpeed, false);
+                            if (srs.dfct(drs) >= 0.1) {
+                                mkGM(GFH, srs, drs.cX(), drs.cY(), minASpeed, false);
+                            }
                         }
                     }
-                    if (sum(vu, ARRV, TANK).zero()) at = gatherAG(GA, GT, 5, ggs, 1);
-                    if (sum(vu, IFV, TANK).zero()) it = gatherAG(GI, GT, 5, ggs, 2);
                     if (fh && at && it) {
                         moves.add(new MB(CLEAR_AND_SELECT).setRect(new Rect(world)));
                         moves.add(new MB(ASSIGN).group(GG));
-                        gameState = GS.GG;
+                        gameState = GS.M;
                     }
-                    if (sum(vu, FIGHTER, HELICOPTER, IFV, ARRV, TANK).zero()) gameState = GS.M;
-                    break;
-                case GG:
                     break;
                 case M:
                     Rect[] rgs = sOfVG(GT,GA,GI,GH,GF);
@@ -165,13 +101,13 @@ public final class SimpleStrategy implements Strategy {
         return new IA(Arrays.stream(vehicleType).map(vt -> acc(vu, vt)).mapToLong(IA::v).sum());
     }
 
-    private boolean gatherAG(int a, int b, int scale, GGS[] ggs, int i) {
+    private boolean gatherAG(int a, int b, int scale, GGS[] ggs, int i, GGS bne) {
         Rect[] rs = sOfVG(a, b);
         Rect rA = rs[0]; Rect rB = rs[1];
         boolean gd = ggs[i] == GGS.F || rs[0].dfct(rs[1]) <= scale;
         switch (ggs[i]) {
             case I:
-                if (rA.cX() != rB.cX() && rA.cY() != rB.cY()) ggs[i] = GGS.INX;
+                if (rA.cX() != rB.cX() && rA.cY() != rB.cY()) ggs[i] = bne;
                 else if (rA.cX() != rB.cX()) ggs[i] = GGS.INY;
                 else if (rA.cY() != rB.cY()) ggs[i] = GGS.INX;
                 break;
@@ -402,7 +338,8 @@ public final class SimpleStrategy implements Strategy {
         double lineh() { return b - t;}
         boolean include(Vehicle vehicle) { return include(vehicle.getX(), vehicle.getY()); }
         boolean include(double x, double y) { return x >= l && x <= r && y >= t && y <= b; }
-        Rect square(int i, int j, int n) { return new Rect(l + j*(r-l)/n, t + i*(b-t)/n, t + (i+1)*(b-t)/n, l + (j+1)*(r-l)/n); }
+        Rect square(int i, int j, int n, double side) { return new Rect(l + j*side/n, t + i*side/n,
+                t + (i+1)*side/n, l + (j+1)*side/n); }
         L[] sidesw() { return new L[]{tlw(), rlw(), blw(), llw()}; }
         Rect leftHalf() { return new Rect(l, t, b, (l+r)/2); }
         Rect rightHalf() { return new Rect((l+r)/2 + 0.5, t, b, r); }
@@ -611,4 +548,114 @@ public final class SimpleStrategy implements Strategy {
         int i,j;
         P prev;
     }
+
+    Deque<MB> agm = new LinkedList<>();
+    Deque<MB> igm = new LinkedList<>();
+
+    void setupGroupingMoves() {
+        Rect[] rs = sOfVT(ARRV, IFV, TANK);
+        Rect order = new Rect();
+        int[] groups = new int[]{GA,GI,GT};
+        for (Rect r : rs) order = order.combine(r);
+        int[][] field = new int[3][3];
+        int[][] mD = new int[3][3];
+        for (int i = 0; i < mD.length; i++) Arrays.fill(mD[i], A);
+        int[] aij = null;
+        int[] iij = null;
+        double side = max(order.linew(), order.lineh());
+        for (int i = 0; i < field.length; i++) {
+            for (int j = 0; j < field.length; j++) {
+                for (int k = 0; k < rs.length; k++) {
+                    if (rs[k].cX() >= order.l + j*side/3 && rs[k].cX() <= order.l + (j+1)*side/3 &&
+                        rs[k].cY() >= order.t + i*side/3 && rs[k].cY() <= order.t + (i+1)*side/3) {
+                        field[i][j] = groups[k];
+                        if (groups[k] == GI) iij = new int[]{i,j};
+                        if (groups[k] == GA) aij = new int[]{i,j};
+                    }
+                }
+            }
+        }
+        P ap = bfs(field, mD, aij[0], aij[1], GT);
+        P tij = ap;
+        ap = tij.prev;
+        // block the same side attachment
+        if (ap.i == tij.i) { mij(tij.i, tij.j - 1, mD, L+R+U); mij(tij.i, tij.j + 1, mD, L+R+D); ggs[2] = GGS.INX; ggs[1] = GGS.INY; }
+        else { mij(tij.i - 1, tij.j, mD, L+D+U); mij(tij.i + 1, tij.j, mD, R+D+U); ggs[2] = GGS.INY; ggs[1] = GGS.INX;}
+        for (;ap != null && ap.prev != null;ap = ap.prev) {
+            fM(GA, ap.prev.i, ap.prev.j, ap.i, ap.j, order, agm, side);
+            field[ap.i][ap.j] = Integer.MAX_VALUE;
+        }
+        P ip = bfs(field, mD, iij[0], iij[1], GT);
+        for (ip = ip.prev; ip != null && ip.prev != null;ip = ip.prev) fM(GI, ip.prev.i, ip.prev.j, ip.i, ip.j, order, igm, side);
+    }
+
+    void mij(int i, int j, int[][] md, int ms) {
+        if (i >= 3 || i < 0 || j < 0 || j >=3) return;
+        md[i][j] = ms;
+    }
+
+    P bfs(int[][] field, int[][] mD, int si, int sj, int dgid) {
+        Queue<P> qp = new LinkedList<>();
+        qp.add(new P(si, sj, null));
+        while (!qp.isEmpty()) {
+            P ij = qp.poll();
+            int i = ij.i;
+            int j = ij.j;
+            if (field[i][j] == dgid) {
+                return ij;
+            }
+            if (cij(i+1,j,field, dgid) && (mD[i][j] & R) > 0) qp.add(new P(i+1,j, ij));
+            if (cij(i,j+1,field, dgid) && (mD[i][j] & D) > 0) qp.add(new P(i,j+1, ij));
+            if (cij(i-1,j,field, dgid) && (mD[i][j] & L) > 0) qp.add(new P(i-1,j, ij));
+            if (cij(i,j-1,field, dgid) && (mD[i][j] & U) > 0) qp.add(new P(i,j-1, ij));
+        }
+        return null;
+    }
+
+    boolean cij(int i, int j, int[][] field, int dgid) {
+        if (i >= 3 || i < 0 || j < 0 || j >=3) return false;
+        if (field[i][j] == dgid || field[i][j] == 0) return true;
+        return false;
+    }
+
+    boolean fM(int gid, int si, int sj, int di, int dj, Rect order, Deque<MB> deque, double side) {
+        Rect dst = order.square(di, dj, 3, side);
+        deque.add(MB.c(MOVE).dfCToXY(order.square(si, sj, 3, side), dst.cX(), dst.cY()));
+        deque.addLast(MB.c(CLEAR_AND_SELECT).group(gid));
+        return true;
+    }
+
+    private final Map<Long, VeEx> vehiclesById = new HashMap<>();
+    private Player me;
+    private World world;
+    private Queue<MB> moves = new LinkedList<>();
+    private double committedMoves = 0;
+    private static double EPS = 0.000001;
+
+    final static int L = 1;
+    final static int R = 2;
+    final static int U = 4;
+    final static int D = 8;
+    final static int A = L+R+U+D;
+
+    final static int GT = 1;
+    final static int GA = 2;
+    final static int GH = 3;
+    final static int GI = 4;
+    final static int GF = 5;
+    final static int GG = 10;
+
+    int GFH = 0;
+    final static int GA2 = 7;
+    final static int GG1 = 8;
+    final static int GG2 = 9;
+
+    private Random random;
+
+    enum GS {I, G, GG, M}
+    GS gameState = GS.I;
+    enum GGS { I, INX, INY, NX, NY, F }
+    GGS[] ggs = new GGS[]{GGS.I, GGS.I, GGS.I};
+    double minGSpeed = 0;
+    double minASpeed = 0;
 }
