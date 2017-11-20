@@ -39,18 +39,8 @@ public final class SimpleStrategy implements Strategy {
 
     private Deque<MB> agm = new LinkedList<>();
     private Deque<MB> aim = new LinkedList<>();
-    class P {
-        public P(int i, int j, P prev) {
-            this.i = i;
-            this.j = j;
-            this.prev = prev;
-        }
 
-        int i,j;
-        P prev;
-    }
-
-    P path(int[][] field, int si, int sj, int dgid) {
+    P bfs(int[][] field, int si, int sj, int dgid) {
         Queue<P> qp = new LinkedList<>();
         qp.add(new P(si, sj, null));
         while (!qp.isEmpty()) {
@@ -60,17 +50,18 @@ public final class SimpleStrategy implements Strategy {
             if (field[i][j] == dgid) {
                 return ij;
             }
-            if (cij(i+1,j,field)) qp.add(new P(i+1,j, ij));
-            if (cij(i,j+1,field)) qp.add(new P(i,j+1, ij));
-            if (cij(i-1,j,field)) qp.add(new P(i-1,j, ij));
-            if (cij(i,j-1,field)) qp.add(new P(i,j-1, ij));
+            if (cij(i,j,i+1,j,field, dgid)) qp.add(new P(i+1,j, ij));
+            if (cij(i,j,i,j+1,field, dgid)) qp.add(new P(i,j+1, ij));
+            if (cij(i,j,i-1,j,field, dgid)) qp.add(new P(i-1,j, ij));
+            if (cij(i,j,i,j-1,field, dgid)) qp.add(new P(i,j-1, ij));
         }
         return null;
     }
 
-    boolean cij(int i, int j, int[][] field) {
-        if (i >= 3 || i < 0 || j < 0 || j >=3 || field[i][j] != 0) return false;
-        return true;
+    boolean cij(int si, int sj, int i, int j, int[][] field, int dgid) {
+        if (i >= 3 || i < 0 || j < 0 || j >=3) return false;
+        if (field[i][j] == dgid || field[i][j] == 0) return true;
+        return false;
     }
 
     boolean fM(int gid, int si, int sj, int di, int dj, Rect rf, Deque<MB> deque) {
@@ -117,9 +108,10 @@ public final class SimpleStrategy implements Strategy {
                             }
                         }
                     }
-                    P ap = path(field, aij[0], aij[1], GT);
+                    P ap = bfs(field, aij[0], aij[1], GT);
+                    while (ap.prev != null) fM(GA, ap.i, aij);
 
-                    P ip = path(field, iij[0], iij[1], GT);
+                    P ip = bfs(field, iij[0], iij[1], GT);
                     gameState = GS.G;
                     break;
                 case G:
@@ -144,7 +136,6 @@ public final class SimpleStrategy implements Strategy {
                     if (sum(vu, FIGHTER, HELICOPTER, IFV, ARRV, TANK).zero()) gameState = GS.M;
                     break;
                 case GG:
-
                     break;
                 case M:
                     Rect[] rgs = sOfVG(GT,GA,GI,GH,GF);
@@ -608,5 +599,16 @@ public final class SimpleStrategy implements Strategy {
 
         @Override
         public int compareTo(IA o) { return Long.compare(value, o.value); }
+    }
+
+    static class P {
+        public P(int i, int j, P prev) {
+            this.i = i;
+            this.j = j;
+            this.prev = prev;
+        }
+
+        int i,j;
+        P prev;
     }
 }
