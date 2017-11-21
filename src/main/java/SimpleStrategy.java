@@ -10,12 +10,32 @@ import static model.VehicleType.*;
 
 public final class SimpleStrategy implements Strategy {
 
+    GS gameState = GS.I;
+    GGS[] ggs = new GGS[]{GGS.I, GGS.I, GGS.I};
+    double minGSpeed = 0;
+    double minASpeed = 0;
+    final Map<Long, VeEx> vehiclesById = new HashMap<>();
+    Player me;
+    World world;
+    Queue<MB> moves = new LinkedList<>();
+    double cdMs = 0;
+    int[] pG = new int[3];
+    VehicleType[] pT = new VehicleType[3];
+    Map<VehicleType, P2D> tlP = new HashMap<>();
+    Map<VehicleType, Boolean> tlPc = new HashMap<>();
+
+    public SimpleStrategy() {
+        for (VehicleType vehicleType : VehicleType.values()) {
+            tlP.put(vehicleType, new P2D(Double.MAX_VALUE, Double.MAX_VALUE));
+        }
+    }
+
     @Override
     public void move(Player me, World world, Game game, Move move) {
         this.me = me;
         this.world = world;
         Map<VehicleType, IA> vu = initV(world);
-        if (committedMoves/world.getTickIndex() >= 0.199) return;
+        if (cdMs /world.getTickIndex() >= 0.2) return;
         if (random == null) random = new Random(game.getRandomSeed());
 
         MB nextMove = moves.poll();
@@ -27,6 +47,12 @@ public final class SimpleStrategy implements Strategy {
                     ctG(GI, IFV, 1.6);
                     ctG(GH, HELICOPTER, 1.4);
                     ctG(GF, FIGHTER, 1.4);
+                    VehicleType[] vs = new VehicleType[]{TANK, ARRV, IFV};
+                    int[] groups = new int[]{GT, GA, GI};
+                    Rect gr[] = sOfVT(TANK, ARRV, IFV);
+                    for (int i = 0; i < gr.length; i++) { gr[i].g = groups[i]; gr[i].vt = vs[i]; }
+                    Arrays.sort(gr);
+                    for (int i = 0; i < gr.length; i++) { pG[i] = gr[i].g;pT[i] = gr[i].vt; }
                     gameState = GS.G;
                     break;
                 case G:
@@ -38,29 +64,29 @@ public final class SimpleStrategy implements Strategy {
                     break;
                 case GG:
                     boolean fh = false, at = false, it = false;
-                    if (sum(vu, ARRV, TANK).zero()) {
-                        MB mb = agm.pollLast();
+                    if (sum(vu, pT[0], pT[1]).zero()) {
+                        MB mb = gm0.pollLast();
                         if (mb != null) {
                             moves.add(mb);
-                            moves.add(agm.pollLast());
+                            moves.add(gm0.pollLast());
                         }
                         else
-                            if (ggs[2] == GGS.F) at = gatherAG(GA, GT, 5, ggs, 1, null);
+                            if (ggs[2].ordinal() <= GGS.INX.ordinal() || ggs[2] == GGS.F) at = gatherAG(pG[0], pG[1], 5, ggs, 1, null);
                     }
-                    if (sum(vu, IFV, TANK).zero()) {
-                        MB mb = igm.pollLast();
+                    if (sum(vu, pT[2], pT[1]).zero()) {
+                        MB mb = gm2.pollLast();
                         if (mb != null) {
                             moves.add(mb);
-                            moves.add(igm.pollLast());
+                            moves.add(gm2.pollLast());
                         }
                         else
-                            if (ggs[1] == GGS.F) it = gatherAG(GI, GT, 5, ggs, 2, null);
+                            if (ggs[1].ordinal() <= GGS.INX.ordinal() || ggs[1] == GGS.F) it = gatherAG(pG[2], pG[1], 5, ggs, 2, null);
                     }
                     if (sum(vu, FIGHTER, HELICOPTER).zero()) {
                         fh = gatherAG(GF, GH, 4, ggs, 0, GGS.INX);
-                        if (fh && sum(vu, TANK).zero()) {
+                        if (fh && !tlPc.getOrDefault(pT[1], true)) {
                             Rect srs = GFH == 0 ? OfVG(GF, GH) : OfVG(GFH);
-                            Rect drs = OfVG(GT);
+                            Rect drs = sum(vu, pT[1]).zero() ? OfVG(pG[1]) : cFlp(tlP.get(pT[1]));
                             if (GFH == 0) ctGFH(GFH = 6);
                             if (srs.dfct(drs) >= 0.1) {
                                 mkGM(GFH, srs, drs.cX(), drs.cY(), minASpeed, false);
@@ -74,26 +100,31 @@ public final class SimpleStrategy implements Strategy {
                     }
                     break;
                 case M:
-                    Rect[] rgs = sOfVG(GT,GA,GI,GH,GF);
-                    Arrays.sort(rgs);
-                    O: for (int i = 0; i < rgs.length; i++) {
-                        for (int j = 0; j < rgs.length; j++) {
-                            if (i > j && rgs[i].dfct(rgs[j]) > 2) {
-                                for (int k = 0; k < rgs.length; k++) {
-                                    mkGM(rgs[i].g, rgs[0].cX(), rgs[0].cX(), minGSpeed);
-                                }
-                                return;
-                            }
-                        }
-                    }
                     P2D ep = cEP(GG);
-                    mkGM(GG, ep.x, ep.y, minGSpeed);
+                    mkGM(GG, ep.x, ep.y, minGSpeed * tS(OfVG(GT,GA,GI), world));
                     break;
             }
         } else {
-            committedMoves++;
+            cdMs++;
             nextMove.setMove(move);
         }
+    }
+
+    Rect cFlp(P2D lc) {
+        return new Rect(lc.x - 2.0, lc.y - 2.0, lc.y + 84.0, lc.x + 84.0);
+    }
+
+    static double tS(Rect rs, World world) {
+        int[] wij = rs.c().inWorld(world);
+        switch (world.getTerrainByCellXY()[wij[0]][wij[0]]) {
+            case PLAIN:
+                return 1;
+            case SWAMP:
+                return 0.6;
+            case FOREST:
+                return 0.7;
+        }
+        return 1;
     }
 
     static IA acc(Map<VehicleType, IA> vu, VehicleType vehicleType) { return vu.getOrDefault(vehicleType, IA.ZERO); }
@@ -149,10 +180,9 @@ public final class SimpleStrategy implements Strategy {
         moves.add(new MB(CLEAR_AND_SELECT).group(id));
         Rect rect = OfV(gV(id));
         if (rect.dfct(x, y) < 0.5) {
-            double rand = random.nextDouble();
+            double rand = 2*random.nextDouble();
             moves.add(MB.c(MOVE).dfCToXY(rect, x + (rect.r - rect.l)*rand, y + (rect.b - rect.t)*rand).maxSpeed(ms));
-        }
-        else moves.add(MB.c(MOVE).dfCToXY(rect, x, y).maxSpeed(ms));
+        } else moves.add(MB.c(MOVE).dfCToXY(rect, x, y).maxSpeed(ms));
     }
 
     void mkGM(int id, Rect gr, double x, double y, boolean select) {
@@ -178,9 +208,7 @@ public final class SimpleStrategy implements Strategy {
 
     Map<VehicleType, IA> initV(World world) {
         Map<VehicleType, IA> vehicleUpdates = new HashMap<>();
-        for (Vehicle vehicle : world.getNewVehicles()) {
-            vehiclesById.put(vehicle.getId(), new VeEx(vehicle, world.getTickIndex()));
-        }
+        for (Vehicle vehicle : world.getNewVehicles()) vehiclesById.put(vehicle.getId(), new VeEx(vehicle, world.getTickIndex()));
 
         if (minGSpeed == 0) {
             minGSpeed = Double.MAX_VALUE;
@@ -191,29 +219,37 @@ public final class SimpleStrategy implements Strategy {
                     else minASpeed = min(minASpeed, ve.v.getMaxSpeed());
             }
         }
+        Map<VehicleType, P2D> vtP = new HashMap<>();
         for (VehicleUpdate vu : world.getVehicleUpdates()) {
             VeEx vehicle = vehiclesById.get(vu.getId());
             if (vu.getDurability() == 0) {
                 vehiclesById.remove(vu.getId());
             } else {
-                if (vehicle.m()) vehicleUpdates.computeIfAbsent(vehicle.type(), t -> new IA(0)).inc();
+                if (vehicle.m()) {
+                    vehicleUpdates.computeIfAbsent(vehicle.type(), t -> new IA(0)).inc();
+                    P2D mp = vtP.computeIfAbsent(vehicle.type(), t -> new P2D(Double.MAX_VALUE, Double.MAX_VALUE));
+                    P2D vmp = new P2D(vehicle);
+                    if (vmp.compareTo(mp) < 0) vtP.put(vehicle.type(), vmp);
+
+                }
                 vehiclesById.computeIfPresent(vu.getId(), (id, VeEx) -> new VeEx(VeEx, vu, world.getTickIndex()));
             }
+        }
+        for (VehicleType vt : VehicleType.values()) {
+            tlPc.put(vt, true);
+            P2D cp = tlP.get(vt);
+            P2D np = vtP.get(vt);
+            tlPc.put(vt, np != null && np.compareTo(cp) != 0);
+            if (np != null && np.compareTo(cp) < 0  ) tlP.put(vt, np);
         }
         return vehicleUpdates;
     }
 
-    Stream<VeEx> mT() { return mVT(VehicleType.TANK); }
-    Stream<VeEx> mA() { return mVT(VehicleType.ARRV); }
-    Stream<VeEx> mF() { return mVT(VehicleType.FIGHTER); }
-    Stream<VeEx> mH() { return mVT(HELICOPTER); }
-    Stream<VeEx> mI() { return mVT(VehicleType.IFV); }
+
     Stream<VeEx> mV() { return vehiclesById.values().stream().filter(VeEx::m); }
-    Stream<VeEx> mVT(VehicleType t) { return mV().filter(vt -> vt.ofVT(t)); }
     Rect OfV(Stream<VeEx> vhs) { return vhs.reduce(new Rect(), Rect::update, Rect::combine); }
     Stream<VeEx> gV(int id) { return mV().filter(vt -> vt.inG(id)); }
     Stream<VeEx> eV() { return vehiclesById.values().stream().filter(VeEx::e); }
-    Stream<VeEx> eVT(VehicleType[] ts) { return eV().filter(ve -> ve.ofVT(ts)); }
 
     Rect[] sOfVG(int... ids) {
         Rect[] initial = new Rect[ids.length];
@@ -272,7 +308,7 @@ public final class SimpleStrategy implements Strategy {
         double r() {return v.getRadius(); }
     }
 
-    static class P2D {
+    static class P2D implements Comparable<P2D> {
         private double x;
         private double y;
 
@@ -288,11 +324,28 @@ public final class SimpleStrategy implements Strategy {
             this.y = vehicle.getY();
         }
 
-        boolean less(P2D p) { return x < p.x - EPS || abs(x-p.x) < EPS && y < p.y - EPS; }
+        P2D(VeEx vehicle) {
+            this.x = vehicle.x();
+            this.y = vehicle.y();
+        }
+
+        @Override
+        public int compareTo(P2D o) {
+            int ix = cD(x,o.x);
+            if (ix == 0) return cD(y,o.y);
+            return ix;
+        }
+
+        boolean less(P2D p) { return compareTo(p) < 0; }
 
         @Override
         public String toString() {
             return "(" + round(x) + "," + round(y) + ")";
+        }
+
+        int[] inWorld(World world) {
+            return new int[]{(int)round(min(world.getWidth()/PALE_SIDE, x/PALE_SIDE)),
+                    (int)round(min(world.getHeight()/PALE_SIDE, y/PALE_SIDE))};
         }
     }
 
@@ -303,6 +356,7 @@ public final class SimpleStrategy implements Strategy {
 
     class Rect implements Comparable<Rect> {
         double l = Double.NaN,t = Double.NaN,b = Double.NaN,r = Double.NaN;
+        VehicleType vt;
         int g;
 
         Rect() {}
@@ -362,8 +416,8 @@ public final class SimpleStrategy implements Strategy {
         }
     }
 
-    boolean eD(double a, double b) { return cD(a, b) == 0;}
-    int cD(double a, double b) { return abs(a - b) > EPS ? Double.compare(a, b) :  0; }
+    static boolean eD(double a, double b) { return cD(a, b) == 0;}
+    static int cD(double a, double b) { return abs(a - b) > EPS ? Double.compare(a, b) :  0; }
 
     static class L {
         double a, b, c;
@@ -538,19 +592,19 @@ public final class SimpleStrategy implements Strategy {
         public int compareTo(IA o) { return Long.compare(value, o.value); }
     }
 
-    static class P {
-        public P(int i, int j, P prev) {
+    static class GP {
+        public GP(int i, int j, GP prev) {
             this.i = i;
             this.j = j;
             this.prev = prev;
         }
 
         int i,j;
-        P prev;
+        GP prev;
     }
 
-    Deque<MB> agm = new LinkedList<>();
-    Deque<MB> igm = new LinkedList<>();
+    Deque<MB> gm0 = new LinkedList<>();
+    Deque<MB> gm2 = new LinkedList<>();
 
     void setupGroupingMoves() {
         Rect[] rs = sOfVT(ARRV, IFV, TANK);
@@ -560,8 +614,8 @@ public final class SimpleStrategy implements Strategy {
         int[][] field = new int[3][3];
         int[][] mD = new int[3][3];
         for (int i = 0; i < mD.length; i++) Arrays.fill(mD[i], A);
-        int[] aij = null;
-        int[] iij = null;
+        int[] ij2 = null;
+        int[] ij0 = null;
         double side = max(order.linew(), order.lineh());
         for (int i = 0; i < field.length; i++) {
             for (int j = 0; j < field.length; j++) {
@@ -569,24 +623,25 @@ public final class SimpleStrategy implements Strategy {
                     if (rs[k].cX() >= order.l + j*side/3 && rs[k].cX() <= order.l + (j+1)*side/3 &&
                         rs[k].cY() >= order.t + i*side/3 && rs[k].cY() <= order.t + (i+1)*side/3) {
                         field[i][j] = groups[k];
-                        if (groups[k] == GI) iij = new int[]{i,j};
-                        if (groups[k] == GA) aij = new int[]{i,j};
+                        if (groups[k] == pG[0]) ij0 = new int[]{i,j};
+                        if (groups[k] == pG[2]) ij2 = new int[]{i,j};
                     }
                 }
             }
         }
-        P ap = bfs(field, mD, aij[0], aij[1], GT);
-        P tij = ap;
-        ap = tij.prev;
+        GP pkGr0 = bfs(field, mD, ij0[0], ij0[1], pG[1]);
+        GP pkGr1 = pkGr0;
+        pkGr0 = pkGr1.prev;
         // block the same side attachment
-        if (ap.i == tij.i) { mij(tij.i, tij.j - 1, mD, L+R+U); mij(tij.i, tij.j + 1, mD, L+R+D); ggs[2] = GGS.INX; ggs[1] = GGS.INY; }
-        else { mij(tij.i - 1, tij.j, mD, L+D+U); mij(tij.i + 1, tij.j, mD, R+D+U); ggs[2] = GGS.INY; ggs[1] = GGS.INX;}
-        for (;ap != null && ap.prev != null;ap = ap.prev) {
-            fM(GA, ap.prev.i, ap.prev.j, ap.i, ap.j, order, agm, side);
-            field[ap.i][ap.j] = Integer.MAX_VALUE;
+        if (pkGr0.i == pkGr1.i) { mij(pkGr1.i, pkGr1.j - 1, mD, L+R+U); mij(pkGr1.i, pkGr1.j + 1, mD, L+R+D); ggs[2] = GGS.INX; ggs[1] = GGS.INY; }
+        else { mij(pkGr1.i - 1, pkGr1.j, mD, L+D+U); mij(pkGr1.i + 1, pkGr1.j, mD, R+D+U); ggs[2] = GGS.INY; ggs[1] = GGS.INX;}
+        for (;pkGr0 != null && pkGr0.prev != null;pkGr0 = pkGr0.prev) {
+            fM(pG[0], pkGr0.prev.i, pkGr0.prev.j, pkGr0.i, pkGr0.j, order, gm0, side);
+            field[pkGr0.i][pkGr0.j] = Integer.MAX_VALUE;
         }
-        P ip = bfs(field, mD, iij[0], iij[1], GT);
-        for (ip = ip.prev; ip != null && ip.prev != null;ip = ip.prev) fM(GI, ip.prev.i, ip.prev.j, ip.i, ip.j, order, igm, side);
+        GP pkG2 = bfs(field, mD, ij2[0], ij2[1], pG[1]);
+        for (pkG2 = pkG2.prev; pkG2 != null && pkG2.prev != null;pkG2 = pkG2.prev)
+            fM(pG[2], pkG2.prev.i, pkG2.prev.j, pkG2.i, pkG2.j, order, gm2, side);
     }
 
     void mij(int i, int j, int[][] md, int ms) {
@@ -594,20 +649,20 @@ public final class SimpleStrategy implements Strategy {
         md[i][j] = ms;
     }
 
-    P bfs(int[][] field, int[][] mD, int si, int sj, int dgid) {
-        Queue<P> qp = new LinkedList<>();
-        qp.add(new P(si, sj, null));
+    GP bfs(int[][] field, int[][] mD, int si, int sj, int dgid) {
+        Queue<GP> qp = new LinkedList<>();
+        qp.add(new GP(si, sj, null));
         while (!qp.isEmpty()) {
-            P ij = qp.poll();
+            GP ij = qp.poll();
             int i = ij.i;
             int j = ij.j;
             if (field[i][j] == dgid) {
                 return ij;
             }
-            if (cij(i+1,j,field, dgid) && (mD[i][j] & R) > 0) qp.add(new P(i+1,j, ij));
-            if (cij(i,j+1,field, dgid) && (mD[i][j] & D) > 0) qp.add(new P(i,j+1, ij));
-            if (cij(i-1,j,field, dgid) && (mD[i][j] & L) > 0) qp.add(new P(i-1,j, ij));
-            if (cij(i,j-1,field, dgid) && (mD[i][j] & U) > 0) qp.add(new P(i,j-1, ij));
+            if (cij(i+1,j,field, dgid) && (mD[i][j] & R) > 0) qp.add(new GP(i+1,j, ij));
+            if (cij(i,j+1,field, dgid) && (mD[i][j] & D) > 0) qp.add(new GP(i,j+1, ij));
+            if (cij(i-1,j,field, dgid) && (mD[i][j] & L) > 0) qp.add(new GP(i-1,j, ij));
+            if (cij(i,j-1,field, dgid) && (mD[i][j] & U) > 0) qp.add(new GP(i,j-1, ij));
         }
         return null;
     }
@@ -625,12 +680,8 @@ public final class SimpleStrategy implements Strategy {
         return true;
     }
 
-    private final Map<Long, VeEx> vehiclesById = new HashMap<>();
-    private Player me;
-    private World world;
-    private Queue<MB> moves = new LinkedList<>();
-    private double committedMoves = 0;
     private static double EPS = 0.000001;
+    private static double PALE_SIDE = 32.0;
 
     final static int L = 1;
     final static int R = 2;
@@ -651,11 +702,6 @@ public final class SimpleStrategy implements Strategy {
     final static int GG2 = 9;
 
     private Random random;
-
     enum GS {I, G, GG, M}
-    GS gameState = GS.I;
     enum GGS { I, INX, INY, NX, NY, F }
-    GGS[] ggs = new GGS[]{GGS.I, GGS.I, GGS.I};
-    double minGSpeed = 0;
-    double minASpeed = 0;
 }
