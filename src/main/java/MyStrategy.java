@@ -1,8 +1,6 @@
 import model.*;
 
 import java.util.*;
-import java.util.function.BiFunction;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.lang.StrictMath.PI;
@@ -28,6 +26,7 @@ public final class MyStrategy implements Strategy {
     Deque<MB> gm2 = new LinkedList<>();
     int lastNSTick = 0;
     Map<VehicleType, VeE> fvId = new HashMap<>();
+    static final Boolean DEBUG = false;
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
@@ -42,7 +41,11 @@ public final class MyStrategy implements Strategy {
             switch (gameState) {
                 case I:
                     for (VeE veE : vehiclesById.values()) {
-                        if (veE.m(me)) fvId.compute(veE.type(), (vt, old) -> old == null ? veE : world.getTickIndex() > old.tI ? veE : old);
+                        if (veE.m(me)) {
+                            VeE ve = fvId.get(veE.type());
+                            if (ve == null) ve = veE; else { ve = P2D.closedTo(ve, veE, P2D.Z); }
+                            fvId.put(ve.type(), ve);
+                        }
                     }
                     ctG(GT, TANK, 1.6);
                     ctG(GA, ARRV, 1.6);
@@ -99,9 +102,10 @@ public final class MyStrategy implements Strategy {
                 case M:
                     if (lastNSTick > 0 && world.getTickIndex() - lastNSTick <= 30) return;
                     if (!mkNS(GG)) {
-                        P2D ep = cEP(GG);
-                        if (!mkGM(GG, ep.x, ep.y, minGSpeed * tS(OfVG(GT, GA, GI), world))) {
-                            if (eV().noneMatch(v -> v.attack(ep))) {
+                        VeE ep = cEP(GG);
+                        if (ep == null) return;
+                        if (!mkGM(GG, ep.x(), ep.y(), minGSpeed * tS(game, OfVG(GT, GA, GI), world) * 0.75)) {
+                            if (mV().noneMatch((v -> v.attack(ep)))) {
                                 gameState = GS.R;
                                 rt(GG, PI / 32);
                             }
@@ -134,24 +138,24 @@ public final class MyStrategy implements Strategy {
         return new Rect(lc.x() - 2.0, lc.y() - 2.0, lc.y() + 84.0, lc.x() + 84.0);
     }
 
-    static double tS(Rect rs, World world) {
+    static double tS(Game game, Rect rs, World world) {
         int[] wij = rs.c().inWorld(world);
-        return wt(world.getTerrainByCellXY()[wij[0]][wij[0]]);
+        return wt(game, world.getTerrainByCellXY()[wij[0]][wij[0]]);
     }
 
-    static double tS(double x, double y, World world) {
+    static double tS(Game game, double x, double y, World world) {
         int[] wij = new P2D(x, y).inWorld(world);
-        return wt(world.getTerrainByCellXY()[wij[0]][wij[0]]);
+        return wt(game, world.getTerrainByCellXY()[wij[0]][wij[0]]);
     }
 
-    static double wt(TerrainType terrainType) {
+    static double wt(Game game, TerrainType terrainType) {
         switch (terrainType) {
             case PLAIN:
-                return 1;
+                return game.getPlainTerrainSpeedFactor();
             case SWAMP:
-                return 0.6;
+                return game.getSwampTerrainSpeedFactor();
             case FOREST:
-                return 0.7;
+                return game.getForestTerrainSpeedFactor();
         }
         return 1;
     }
@@ -191,10 +195,11 @@ public final class MyStrategy implements Strategy {
         return gd;
     }
 
-    private P2D cEP(int... groups) {
-        P2D center = OfVG(groups).c();
-        return eV().reduce(new P2D(Double.MAX_VALUE, Double.MAX_VALUE), (p, VeEx) ->
-                P2D.closedTo(p, new P2D(VeEx.v), center), (a, b) -> P2D.closedTo(a, b, center));
+    private VeE cEP(int... groups) {
+        P2D tl = OfVG(groups).tl();
+        P2D clEp = eV().reduce(new P2D(world.getWidth(), world.getHeight()),
+                (p, VeEx) -> P2D.closedTo(p, new P2D(VeEx), tl), (a, b) -> P2D.closedTo(a, b, tl));
+        return vehiclesById.get(clEp.id);
     }
 
     void rt(int id, double angle) {
@@ -202,22 +207,18 @@ public final class MyStrategy implements Strategy {
         moves.add(MB.c(ROTATE).angle(angle));
     }
 
-    void mkGM(int id, double x, double y) {
-        mkGM(id, x, y, 0);
-    }
-
     boolean mkNS(int id) {
         if (lastNSTick > 0 && world.getTickIndex() - lastNSTick <= 1200) return false;
-        Rect fr = sOfVT(FIGHTER)[0].add(120);
+        Rect fr = sOfVT(FIGHTER)[0].add(40);
         Optional<VeE> efeV = eV().filter(veE -> fr.include(veE.x(), veE.y())).findFirst();
         if (efeV.isPresent()) {
             Vehicle ensv = efeV.get().v;
             Optional<VeE> tfeV = mVt(FIGHTER).filter(v -> v.see(ensv)).findFirst();
             if (tfeV.isPresent()) {
                 Rect rect = sOfVG(id)[0];
-                mkGM(id, rect, rect.cX(), rect.cY(), 0, false);
                 Vehicle mtnsv = tfeV.get().v;
                 moves.add(new MB(TACTICAL_NUCLEAR_STRIKE).vehicleId(mtnsv.getId()).x(ensv.getX()).y(ensv.getY()));
+                mkGM(id, rect, rect.cX(), rect.cY(), 0, false);
                 lastNSTick = world.getTickIndex();
                 return true;
             }
@@ -228,9 +229,11 @@ public final class MyStrategy implements Strategy {
     boolean mkGM(int id, double x, double y, double ms) {
         moves.add(new MB(CLEAR_AND_SELECT).group(id));
         Rect rect = OfV(gV(id));
-        if (rect.dfct(x, y) < 0.5) {
-            return false;
-        } else moves.add(MB.c(MOVE).dfCToXY(rect, x, y).maxSpeed(ms));
+        double dinstance = rect.dflt(x, y);
+        if (dinstance < 0.5 || (rect.r - rect.l) + x >= world.getWidth() || (rect.b - rect.t) + y >= world.getHeight()) {
+            moves.add(MB.c(MOVE).dfCToXY(rect, x, y).maxSpeed(ms));
+            if (rect.dfct(x, y) < 0.5) return false;
+        } else moves.add(MB.c(MOVE).dfLtToXY(rect, x, y).maxSpeed(ms));
         return true;
     }
 

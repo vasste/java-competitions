@@ -2,6 +2,7 @@ import model.*;
 
 import java.util.Arrays;
 
+import static model.VehicleType.ARRV;
 import static model.VehicleType.FIGHTER;
 import static model.VehicleType.HELICOPTER;
 
@@ -41,8 +42,13 @@ public class VeE implements Comparable<VeE> {
     double s() {return v.getMaxSpeed(); }
     boolean see(P2D p) { return P2D.distanceTo(p, v) < v.getVisionRange(); }
     boolean see(Unit u) { return u.getDistanceTo(v) < v.getVisionRange(); }
-    boolean attack(P2D u) { return v.getType() == FIGHTER || v.getType() == HELICOPTER ?
-            P2D.distanceTo(u, v) < v.getAerialAttackRange() : P2D.distanceTo(u, v) < v.getGroundAttackRange(); }
+    boolean attack(VeE u) {
+        if (type() == ARRV) return false;
+        if (type() == FIGHTER && u.v.isAerial()) return P2D.distanceTo(u, this) <= v.getAerialAttackRange();
+        double duthis = P2D.distanceTo(u, this);
+        return duthis <= v.getAerialAttackRange() || duthis <= v.getGroundAttackRange();
+
+    }
 
     @Override
     public int compareTo(VeE o) {

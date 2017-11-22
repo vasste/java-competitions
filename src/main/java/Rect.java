@@ -36,10 +36,12 @@ public class Rect implements Comparable<Rect> {
 
     Rect add(double range) { return new Rect(max(0, l - range),max(0, t - range),b+range, r+range); }
     double square() { return abs(r - l)*abs(b - t); }
+    double dflt(double x, double y) { return hypot(x - l, y - t); }
     double dfct(double x, double y) { return hypot(x - cX(), y - cY()); }
     double dfct(P2D p) { return hypot(p.x - cX(), p.y - cY()); }
     double dfct(Rect rect) { return hypot(rect.cX() - cX(), rect.cY() - cY()); }
-    P2D c() { return new P2D(cX(), cY()); };
+    P2D c() { return new P2D(cX(), cY()); }
+    P2D tl() { return new P2D(l, t); }
     double cX() { return (l + r)/2; }
     double cY() { return (b + t)/2; }
     double linew() { return r - l;}

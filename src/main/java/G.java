@@ -70,6 +70,7 @@ public class G {
                 }
             }
         }
+        if (MyStrategy.DEBUG) for (int i = 0; i < 3; i++) { System.out.println(Arrays.toString(field[i]));}
         GP pkG1 = bfs(field, mD, ij1[0], ij1[1], pG[0]);
         GP pkG0 = pkG1;
         pkG1 = pkG0.prev;
@@ -80,9 +81,12 @@ public class G {
             fM(pG[1], p.prev.i, p.prev.j, p.i, p.j, order, gm1, side);
             field[p.i][p.j] = Integer.MAX_VALUE;
         }
+        if (MyStrategy.DEBUG) for (int i = 0; i < 3; i++) { System.out.println(Arrays.toString(mD[i]));}
         GP pkG2 = bfs(field, mD, ij2[0], ij2[1], pG[0]);
         for (GP p = pkG2.prev; p != null && p.prev != null; p = p.prev)
             fM(pG[2], p.prev.i, p.prev.j, p.i, p.j, order, gm2, side);
+        if (MyStrategy.DEBUG) System.out.println(toString(pkG1));
+        if (MyStrategy.DEBUG) System.out.println(toString(pkG2));
     }
 
     static class GP {

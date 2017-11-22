@@ -43,6 +43,11 @@ public class MB {
         this.x = x - current.cX();
         return this;
     }
+    MB dfLtToXY(Rect current, double x, double y) {
+        this.y = y - current.t;
+        this.x = x - current.l;
+        return this;
+    }
     MB angle(double angle) { this.angle = angle; return this; }
     MB factor(double factor) { this.factor = factor; return this; }
     MB maxSpeed(double maxSpeed) { this.maxSpeed = maxSpeed; return this; }
