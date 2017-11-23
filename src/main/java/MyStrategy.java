@@ -19,13 +19,12 @@ public final class MyStrategy implements Strategy {
     Player me;
     World world;
     Queue<MB> moves = new LinkedList<>();
-    double cdMs = 0;
     int[] pG = new int[3];
     VehicleType[] pT = new VehicleType[3];
     Deque<MB> gm1 = new LinkedList<>();
     Deque<MB> gm2 = new LinkedList<>();
-    int lastNSTick = 0;
     Map<VehicleType, VeE> fvId = new HashMap<>();
+    Map<Integer, P2D> vGd = new HashMap<>();
     static final Boolean DEBUG = false;
 
     @Override
@@ -33,7 +32,7 @@ public final class MyStrategy implements Strategy {
         this.me = me;
         this.world = world;
         Map<VehicleType, IA> vu = initV(world);
-        if (cdMs /world.getTickIndex() >= 0.198) return;
+        if (me.getRemainingActionCooldownTicks() > 0) return;
         if (random == null) random = new Random(game.getRandomSeed());
 
         MB nextMove = moves.poll();
@@ -47,11 +46,13 @@ public final class MyStrategy implements Strategy {
                             fvId.put(ve.type(), ve);
                         }
                     }
-                    ctG(GT, TANK, 1.6);
-                    ctG(GA, ARRV, 1.6);
-                    ctG(GI, IFV, 1.6);
-                    ctG(GH, HELICOPTER, 1.4);
-                    ctG(GF, FIGHTER, 1.4);
+                    double l = 16;
+                    Rect[] rects = sOfVT(TANK, ARRV, IFV, HELICOPTER, FIGHTER);
+                    ctG(GT, TANK, rects[0]);
+                    ctG(GA, ARRV, rects[1]);
+                    ctG(GI, IFV, rects[2]);
+                    ctG(GH, HELICOPTER, rects[3]);
+                    ctG(GF, FIGHTER, rects[4]);
                     VehicleType[] vs = new VehicleType[]{TANK, ARRV, IFV};
                     int[] groups = new int[]{GT, GA, GI};
                     Rect gr[] = sOfVT(TANK, ARRV, IFV);
@@ -59,7 +60,17 @@ public final class MyStrategy implements Strategy {
                     for (int i = 0; i < gr.length; i++) { gr[i].g = groups[i]; gr[i].vt = vs[i]; }
                     Arrays.sort(gr, (o1, o2) -> U.cD(o1.dfct(order), o2.dfct(order)));
                     for (int i = 0; i < gr.length; i++) { pG[i] = gr[i].g;pT[i] = gr[i].vt; }
-                    gameState = GS.G;
+                    gameState = GS.A;
+                    break;
+                case A:
+                    if (sum(vu, TANK, ARRV, IFV, HELICOPTER, FIGHTER).zero()) {
+                        sG(GT, 1.6, 0, 0);
+                        sG(GA, 1.6, 0, 0);
+                        sG(GI, 1.6, 0, 0);
+                        sG(GH, 1.55, 0, 0);
+                        sG(GF, 1.55, 0, 0);
+                        gameState = GS.G;
+                    }
                     break;
                 case G:
                     if (sum(vu, ARRV, TANK, IFV).zero()) {
@@ -78,9 +89,8 @@ public final class MyStrategy implements Strategy {
                             moves.add(mb);
                             moves.add(gm1.pollLast());
                         }
-                        else
-                            if (ggs[2].ordinal() <= GGS.INX.ordinal() || ggs[2] == GGS.F)
-                                at = gatherAG(pG[1], pG[0], 5, ggs, 1, ggsI[0]);
+                        else if (ggs[2].ordinal() <= GGS.INX.ordinal() || ggs[2] == GGS.F)
+                                at = gatherAG(pG[1], pG[0], 4.5, ggs, 1, ggsI[0]);
                     }
                     if (sum(vu, pT[2], pT[0]).zero()) {
                         MB mb = gm2.pollLast();
@@ -88,9 +98,8 @@ public final class MyStrategy implements Strategy {
                             moves.add(mb);
                             moves.add(gm2.pollLast());
                         }
-                        else
-                            if (ggs[1].ordinal() <= GGS.INX.ordinal() || ggs[1] == GGS.F)
-                                it = gatherAG(pG[2], pG[0], 5, ggs, 2, ggsI[1]);
+                        else if (ggs[1].ordinal() <= GGS.INX.ordinal() || ggs[1] == GGS.F)
+                                it = gatherAG(pG[2], pG[0], 4.5, ggs, 2, ggsI[1]);
                     }
                     if (sum(vu, FIGHTER, HELICOPTER).zero()) fh = gatherFH(vu);
                     if (fh && at && it) {
@@ -99,25 +108,24 @@ public final class MyStrategy implements Strategy {
                         gameState = GS.M;
                     }
                     break;
+                case R:
+                    if (world.getTickIndex() >= world.getMyPlayer().getNextNuclearStrikeTickIndex())
+                        gameState = GS.M;
                 case M:
-                    if (lastNSTick > 0 && world.getTickIndex() - lastNSTick <= 30) return;
                     if (!mkNS(GG)) {
                         VeE ep = cEP(GG);
                         if (ep == null) return;
                         if (!mkGM(GG, ep.x(), ep.y(), minGSpeed * tS(game, OfVG(GT, GA, GI), world) * 0.75)) {
-                            if (mV().noneMatch((v -> v.attack(ep)))) {
-                                gameState = GS.R;
-                                rt(GG, PI / 32);
-                            }
+                            if ((double)mV().filter(v -> v.attack(ep)).count()/vehiclesById.size() < 0.4) sG(GG, 0.5, ep.x(), ep.y());
                         }
+                    } else {
+                        gameState = GS.R;
                     }
                     break;
-                case R:
-                    if (sum(vu, ARRV, TANK, IFV, FIGHTER, HELICOPTER).zero()) gameState = GS.M;
             }
         } else {
-            cdMs++;
             nextMove.setMove(move);
+            if (DEBUG) System.out.println(nextMove);
         }
     }
 
@@ -128,7 +136,7 @@ public final class MyStrategy implements Strategy {
             Rect drs = sum(vu, pT[0]).zero() ? OfVG(pG[0]) : cFlp(fvId.get(pT[0]));
             if (GFH == 0) ctGFH(GFH = 6);
             if (srs.dfct(drs) >= 0.1) {
-                mkGM(GFH, srs, drs.cX(), drs.cY(), minASpeed, false);
+                mkGM(GFH, srs, drs.cX(), drs.cY(), minASpeed, true);
             }
         }
         return fh;
@@ -140,11 +148,6 @@ public final class MyStrategy implements Strategy {
 
     static double tS(Game game, Rect rs, World world) {
         int[] wij = rs.c().inWorld(world);
-        return wt(game, world.getTerrainByCellXY()[wij[0]][wij[0]]);
-    }
-
-    static double tS(Game game, double x, double y, World world) {
-        int[] wij = new P2D(x, y).inWorld(world);
         return wt(game, world.getTerrainByCellXY()[wij[0]][wij[0]]);
     }
 
@@ -165,7 +168,7 @@ public final class MyStrategy implements Strategy {
         return new IA(Arrays.stream(vehicleType).map(vt -> acc(vu, vt)).mapToLong(IA::v).sum());
     }
 
-    private boolean gatherAG(int a, int b, int scale, GGS[] ggs, int i, GGS bne) {
+    private boolean gatherAG(int a, int b, double scale, GGS[] ggs, int i, GGS bne) {
         Rect[] rects = sOfVG(a, b);
         Rect rectA = rects[0]; Rect rectB = rects[1];
         boolean gd = ggs[i] == GGS.F || rects[0].dfct(rects[1]) <= scale;
@@ -176,20 +179,20 @@ public final class MyStrategy implements Strategy {
                 else if (rectA.cY() != rectB.cY()) ggs[i] = GGS.INX;
                 break;
             case INX:
-                if (U.eD(rectA.cX(), rectB.cX() + scale)) ggs[i] = GGS.NY;
-                else mkGM(a, rectA, rectB.cX() + scale, rectA.cY(), true);
+                if (U.eD(rectA.cX(), rectB.cX() - scale)) ggs[i] = GGS.NY;
+                else mkGM(a, rectA, rectB.cX() - scale, rectA.cY());
                 break;
             case INY:
                 if (U.eD(rectA.cY(), rectB.cY() + scale)) ggs[i] = GGS.NX;
-                else mkGM(a, rectA, rectA.cX(), rectB.cY() + scale, true);
+                else mkGM(a, rectA, rectA.cX(), rectB.cY() + scale);
                 break;
             case NX:
                 if (U.eD(rectA.cX(), rectB.cX())) ggs[i] = GGS.F;
-                else mkGM(a, rectA, rectB.cX(), rectA.cY(), true);
+                else mkGM(a, rectA, rectB.cX(), rectA.cY());
                 break;
             case NY:
                 if (U.eD(rectA.cY(), rectB.cY())) ggs[i] = GGS.F;
-                else mkGM(a, rectA, rectA.cX(), rectB.cY(), true);
+                else mkGM(a, rectA, rectA.cX(), rectB.cY());
                 break;
         }
         return gd;
@@ -202,14 +205,9 @@ public final class MyStrategy implements Strategy {
         return vehiclesById.get(clEp.id);
     }
 
-    void rt(int id, double angle) {
-        moves.add(new MB(CLEAR_AND_SELECT).group(id));
-        moves.add(MB.c(ROTATE).angle(angle));
-    }
-
     boolean mkNS(int id) {
-        if (lastNSTick > 0 && world.getTickIndex() - lastNSTick <= 1200) return false;
-        Rect fr = sOfVT(FIGHTER)[0].add(40);
+        if (world.getMyPlayer().getRemainingNuclearStrikeCooldownTicks() > 0) return false;
+        Rect fr = sOfVT(FIGHTER)[0].add(80);
         Optional<VeE> efeV = eV().filter(veE -> fr.include(veE.x(), veE.y())).findFirst();
         if (efeV.isPresent()) {
             Vehicle ensv = efeV.get().v;
@@ -217,9 +215,8 @@ public final class MyStrategy implements Strategy {
             if (tfeV.isPresent()) {
                 Rect rect = sOfVG(id)[0];
                 Vehicle mtnsv = tfeV.get().v;
+                mkGM(id, rect, rect.cX(), rect.cY(), 0, true);
                 moves.add(new MB(TACTICAL_NUCLEAR_STRIKE).vehicleId(mtnsv.getId()).x(ensv.getX()).y(ensv.getY()));
-                mkGM(id, rect, rect.cX(), rect.cY(), 0, false);
-                lastNSTick = world.getTickIndex();
                 return true;
             }
         }
@@ -234,11 +231,12 @@ public final class MyStrategy implements Strategy {
             moves.add(MB.c(MOVE).dfCToXY(rect, x, y).maxSpeed(ms));
             if (rect.dfct(x, y) < 0.5) return false;
         } else moves.add(MB.c(MOVE).dfLtToXY(rect, x, y).maxSpeed(ms));
+        vGd.put(id, new P2D(x, y));
         return true;
     }
 
-    void mkGM(int id, Rect gr, double x, double y, boolean select) {
-        mkGM(id, gr, x, y, 0, select);
+    void mkGM(int id, Rect gr, double x, double y) {
+        mkGM(id, gr, x, y, 0, true);
     }
 
     void mkGM(int id, Rect groupRect, double x, double y, double ms, boolean select) {
@@ -246,10 +244,18 @@ public final class MyStrategy implements Strategy {
         moves.add(MB.c(MOVE).dfCToXY(groupRect, x, y).maxSpeed(ms));
     }
 
-    void ctG(int id, VehicleType vehicleType, double scale) {
+    void ctG(int id, VehicleType vehicleType, Rect rect) {
         moves.add(new MB(CLEAR_AND_SELECT).vehicleType(vehicleType).setRect(new Rect(0,0,world.getHeight(),world.getWidth())));
         moves.add(MB.c(ASSIGN).group(id));
-        moves.add(MB.c(SCALE).factor(scale));
+        MB mb = MB.c(MOVE);
+        mb.x(-12*((int)rect.l/74));
+        mb.y(-12*((int)rect.t/74));
+        if (vehicleType != FIGHTER || vehicleType != HELICOPTER) moves.add(mb);
+    }
+
+    void sG(int id, double scale, double x, double y) {
+        moves.add(new MB(CLEAR_AND_SELECT).group(id));
+        moves.add(MB.c(SCALE).factor(scale).x(x).y(y));
     }
 
     void ctGFH(int id) {
@@ -332,6 +338,6 @@ public final class MyStrategy implements Strategy {
     public final static int GG2 = 9;
 
     private Random random;
-    public enum GS {I, G, GG, M, R}
+    public enum GS {I, A, G, GG, M, R}
     public enum GGS { I, INX, INY, NX, NY, F }
 }

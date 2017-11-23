@@ -19,10 +19,10 @@ public class Rect implements Comparable<Rect> {
     Rect(Vehicle v) { this(v.getX(), v.getY(), v.getY(), v.getX()); }
 
     Rect update(VeE VeEx) {
-        l = min(isNaN(l) ? Double.MAX_VALUE : l, VeEx.x());
-        r = max(isNaN(r) ? 0 : r, VeEx.x());
-        t = min(isNaN(t) ? Double.MAX_VALUE : t, VeEx.y());
-        b = max(isNaN(b) ? 0 : b, VeEx.y());
+        l = min(isNaN(l) ? Double.MAX_VALUE : l, VeEx.x() - VeEx.r());
+        r = max(isNaN(r) ? 0 : r, VeEx.x() + VeEx.r());
+        t = min(isNaN(t) ? Double.MAX_VALUE : t, VeEx.y() - VeEx.r());
+        b = max(isNaN(b) ? 0 : b, VeEx.y() + VeEx.r());
         return this;
     }
 

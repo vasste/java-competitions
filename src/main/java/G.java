@@ -29,10 +29,10 @@ public class G {
             if (field[i][j] == dgid) {
                 return ij;
             }
-            if (cij(i+1,j,field, dgid) && (mD[i][j] & R) > 0) qp.add(new GP(i+1,j, ij));
-            if (cij(i,j+1,field, dgid) && (mD[i][j] & D) > 0) qp.add(new GP(i,j+1, ij));
-            if (cij(i-1,j,field, dgid) && (mD[i][j] & L) > 0) qp.add(new GP(i-1,j, ij));
-            if (cij(i,j-1,field, dgid) && (mD[i][j] & U) > 0) qp.add(new GP(i,j-1, ij));
+            if (cij(i+1,j,field, dgid) && (mD[i][j] & D) > 0) qp.add(new GP(i+1,j, ij));
+            if (cij(i,j+1,field, dgid) && (mD[i][j] & R) > 0) qp.add(new GP(i,j+1, ij));
+            if (cij(i-1,j,field, dgid) && (mD[i][j] & U) > 0) qp.add(new GP(i-1,j, ij));
+            if (cij(i,j-1,field, dgid) && (mD[i][j] & L) > 0) qp.add(new GP(i,j-1, ij));
         }
         return null;
     }
@@ -72,11 +72,12 @@ public class G {
         }
         if (MyStrategy.DEBUG) for (int i = 0; i < 3; i++) { System.out.println(Arrays.toString(field[i]));}
         GP pkG1 = bfs(field, mD, ij1[0], ij1[1], pG[0]);
+        if (MyStrategy.DEBUG) System.out.println(toString(pkG1));
         GP pkG0 = pkG1;
         pkG1 = pkG0.prev;
         // block the same side attachment
-        if (pkG1.i == pkG0.i) { mij(pkG0.i, pkG0.j - 1, mD, L+R+U); mij(pkG0.i, pkG0.j + 1, mD, L+R+D); ggsI[1] = MyStrategy.GGS.INX; ggsI[0] = MyStrategy.GGS.INY; }
-        else { mij(pkG0.i - 1, pkG0.j, mD, L+D+U); mij(pkG0.i + 1, pkG0.j, mD, R+D+U); ggsI[1] = MyStrategy.GGS.INY; ggsI[0] = MyStrategy.GGS.INX;}
+        if (pkG1.i == pkG0.i) { mij(pkG0.i, pkG0.j - 1, mD, L+D+U); mij(pkG0.i, pkG0.j + 1, mD, R+U+D); ggsI[1] = MyStrategy.GGS.INX; ggsI[0] = MyStrategy.GGS.INY; }
+        else { mij(pkG0.i - 1, pkG0.j, mD, L+R+U); mij(pkG0.i + 1, pkG0.j, mD, R+L+D); ggsI[1] = MyStrategy.GGS.INY; ggsI[0] = MyStrategy.GGS.INX;}
         for (GP p = pkG1; p != null && p.prev != null; p = p.prev) {
             fM(pG[1], p.prev.i, p.prev.j, p.i, p.j, order, gm1, side);
             field[p.i][p.j] = Integer.MAX_VALUE;
@@ -85,7 +86,6 @@ public class G {
         GP pkG2 = bfs(field, mD, ij2[0], ij2[1], pG[0]);
         for (GP p = pkG2.prev; p != null && p.prev != null; p = p.prev)
             fM(pG[2], p.prev.i, p.prev.j, p.i, p.j, order, gm2, side);
-        if (MyStrategy.DEBUG) System.out.println(toString(pkG1));
         if (MyStrategy.DEBUG) System.out.println(toString(pkG2));
     }
 

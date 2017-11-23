@@ -86,4 +86,25 @@ public class MB {
         bottom(rect.b);
         return this;
     }
+
+    @Override
+    public String toString() {
+        return "MB{" +
+                "action=" + action +
+                ", group=" + group +
+                ", left=" + left +
+                ", top=" + top +
+                ", right=" + right +
+                ", bottom=" + bottom +
+                ", x=" + x +
+                ", y=" + y +
+                ", angle=" + angle +
+                ", factor=" + factor +
+                ", maxSpeed=" + maxSpeed +
+                ", maxAngularSpeed=" + maxAngularSpeed +
+                ", vehicleType=" + vehicleType +
+                ", facilityId=" + facilityId +
+                ", vehicleId=" + vehicleId +
+                '}';
+    }
 }
