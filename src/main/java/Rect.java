@@ -8,7 +8,7 @@ import static java.lang.StrictMath.hypot;
 import static java.lang.StrictMath.round;
 
 public class Rect implements Comparable<Rect> {
-    public static Rect ORDER = new Rect(18,18,220,220);
+    public static Rect ORDER = new Rect(14,14,220,220);
     public double l = Double.NaN,t = Double.NaN,b = Double.NaN,r = Double.NaN;
     public VehicleType vt;
     public int g;
@@ -16,14 +16,18 @@ public class Rect implements Comparable<Rect> {
     Rect() {}
     Rect(World world) { this(0, 0, world.getHeight(), world.getWidth()); }
     Rect(double l, double t, double b, double r) { this.l = l;this.t = t;this.b = b;this.r = r; }
-    Rect(Vehicle v) { this(v.getX(), v.getY(), v.getY(), v.getX()); }
+    Rect(Vehicle v) { this(v.getX() - v.getRadius(), v.getY() - v.getRadius(), v.getY() + v.getRadius(), v.getX() + v.getRadius()); }
+
+    Rect update(Vehicle v) {
+        l = StrictMath.min(isNaN(l) ? Double.MAX_VALUE : l, v.getX() - v.getRadius());
+        r = StrictMath.max(isNaN(r) ? 0 : r, v.getX()  + v.getRadius());
+        t = StrictMath.min(isNaN(t) ? Double.MAX_VALUE : t, v.getY()  - v.getRadius());
+        b = StrictMath.max(isNaN(b) ? 0 : b, v.getY() + v.getRadius());
+        return this;
+    }
 
     Rect update(VeE VeEx) {
-        l = min(isNaN(l) ? Double.MAX_VALUE : l, VeEx.x() - VeEx.r());
-        r = max(isNaN(r) ? 0 : r, VeEx.x() + VeEx.r());
-        t = min(isNaN(t) ? Double.MAX_VALUE : t, VeEx.y() - VeEx.r());
-        b = max(isNaN(b) ? 0 : b, VeEx.y() + VeEx.r());
-        return this;
+        return update(VeEx.v);
     }
 
     Rect combine(Rect rect) {
@@ -47,8 +51,9 @@ public class Rect implements Comparable<Rect> {
     double linew() { return r - l;}
     double lineh() { return b - t;}
     boolean include(Vehicle vehicle) { return include(vehicle.getX(), vehicle.getY()); }
-    Rect scale(double factor) { return new Rect(l, t, b*factor, r*factor); }
+    Rect scale(double factor) { return new Rect(l, t, t + (b-t)*factor, l + (r-l)*factor); }
     boolean include(double x, double y) { return x >= l && x <= r && y >= t && y <= b; }
+    boolean include(VeE v) { return v.x() >= l && v.x() <= r && v.y() >= t && v.y() <= b; }
     Rect square(int i, int j, int n, double side) { return new Rect(l + j*side/n, t + i*side/n,
             t + (i+1)*side/n, l + (j+1)*side/n); }
     L[] sidesw(World world) { return new L[]{tlw(world), rlw(world), blw(world), llw(world)}; }
@@ -59,6 +64,28 @@ public class Rect implements Comparable<Rect> {
     L rlw(World world) { return new L(new P2D(r,0),new P2D(r, world.getHeight())); }
     L blw(World world) { return new L(new P2D(world.getWidth(), b),new P2D(0, b)); }
     L llw(World world) { return new L(new P2D(l, world.getHeight()),new P2D(l, 0)); }
+    public boolean intersects(Rect rect) {
+        int tw = (int)round(r - l);
+        int th = (int)round(b - t);
+        int rw = (int)round(rect.r - rect.l);
+        int rh = (int)round(rect.b - rect.t);
+        if (rw <= 0 || rh <= 0 || tw <= 0 || th <= 0) {
+            return false;
+        }
+        int tx = (int)this.l;
+        int ty = (int)this.t;
+        int rx = (int)rect.l;
+        int ry = (int)rect.t;
+        rw += rx;
+        rh += ry;
+        tw += tx;
+        th += ty;
+        //      overflow || intersect
+        return ((rw < rx || rw > tx) &&
+                (rh < ry || rh > ty) &&
+                (tw < tx || tw > rx) &&
+                (th < ty || th > ry));
+    }
 
     @Override
     public int compareTo(Rect o) {

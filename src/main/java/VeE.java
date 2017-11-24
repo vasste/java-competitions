@@ -2,10 +2,6 @@ import model.*;
 
 import java.util.Arrays;
 
-import static model.VehicleType.ARRV;
-import static model.VehicleType.FIGHTER;
-import static model.VehicleType.HELICOPTER;
-
 public class VeE implements Comparable<VeE> {
     final Vehicle v;
     final int tI;
@@ -34,7 +30,8 @@ public class VeE implements Comparable<VeE> {
     boolean inG(int id) { return Arrays.binarySearch(gs, id) >= 0; }
     public String toString() { return "V{" + "g" + Arrays.toString(gs) + "}"; }
     VehicleType type() { return v.getType(); }
-    boolean air() { return v.getType() == HELICOPTER || v.getType() == FIGHTER; }
+    long id() { return v.getId(); }
+    boolean air() { return v.getType() == VehicleType.HELICOPTER || v.getType() == VehicleType.FIGHTER; }
     P2D point() { return new P2D(v.getX(), v.getY()); }
     double x() {return v.getX(); }
     double y() {return v.getY(); }
@@ -42,13 +39,15 @@ public class VeE implements Comparable<VeE> {
     double s() {return v.getMaxSpeed(); }
     boolean see(P2D p) { return P2D.distanceTo(p, v) < v.getVisionRange(); }
     boolean see(Unit u) { return u.getDistanceTo(v) < v.getVisionRange(); }
+    boolean see(VeE p) { return P2D.distanceTo(p, this) < v.getVisionRange(); }
     boolean attack(VeE u) {
-        if (type() == ARRV) return false;
-        if (type() == FIGHTER && u.v.isAerial()) return P2D.distanceTo(u, this) <= v.getAerialAttackRange();
+        if (type() == VehicleType.ARRV) return false;
+        if (type() == VehicleType.FIGHTER && u.v.isAerial()) return P2D.distanceTo(u, this) <= v.getAerialAttackRange();
         double duthis = P2D.distanceTo(u, this);
         return duthis <= v.getAerialAttackRange() || duthis <= v.getGroundAttackRange();
 
     }
+    double distanceTo(double x, double y) { return v.getDistanceTo(x, y); }
 
     @Override
     public int compareTo(VeE o) {

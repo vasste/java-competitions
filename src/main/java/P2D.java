@@ -22,6 +22,12 @@ public class P2D implements Comparable<P2D> {
         this.y = y;
     }
 
+    P2D(P2D p) {
+        this.x = p.x;
+        this.y = p.y;
+        this.id = p.id;
+    }
+
     P2D(Vehicle vehicle) {
         this.x = vehicle.getX();
         this.y = vehicle.getY();
@@ -49,8 +55,8 @@ public class P2D implements Comparable<P2D> {
     }
 
     int[] inWorld(World world) {
-        return new int[]{(int)round(min(world.getWidth()/U.PALE_SIDE, x/U.PALE_SIDE)),
-                (int)round(min(world.getHeight()/U.PALE_SIDE, y/U.PALE_SIDE))};
+        return new int[]{(int) StrictMath.round(StrictMath.min(world.getWidth()/U.PALE_SIDE, x/U.PALE_SIDE)),
+                (int) StrictMath.round(StrictMath.min(world.getHeight()/U.PALE_SIDE, y/U.PALE_SIDE))};
     }
 
     static double det(double a, double b, double c, double d) { return a*d - b*c; }
@@ -58,10 +64,15 @@ public class P2D implements Comparable<P2D> {
     static double distanceTo(P2D a, Unit b) { return hypot(a.x - b.getX(), a.y - b.getY()); }
     static double distanceTo(P2D a, VeE b) { return hypot(a.x - b.x(), a.y - b.y()); }
     static double distanceTo(VeE a, VeE b) { return hypot(a.x() - b.x(), a.y() - b.y()); }
+    static double distanceTo(P2D a, Vehicle b) { return hypot(a.x - b.getX(), a.y - b.getY()); }
+
     static boolean intersect(P2D a1, P2D b1, P2D a2, P2D b2) { return intersect(new L(a1, b1), new L(a2, b2)); }
     static boolean intersect(P2D pa1, P2D pb1, P2D[] side) { return intersect(pa1, pb1, side[0], side[1]); }
     static boolean intersect(P2D[] aside, P2D[] bside) { return intersect(aside[0], aside[1], bside[0], bside[1]); }
     static boolean intersect(L aside, L bside) { return intersect(aside.ps, bside.ps); }
     static VeE closedTo(VeE a, VeE b, P2D center) { return distanceTo(center, a) > distanceTo(center, b) ? b : a; }
     static P2D closedTo(P2D a, P2D b, P2D center) { return distanceTo(center, a) > distanceTo(center, b) ? b : a; }
+    static Vehicle futherTo(Vehicle a, Vehicle b, P2D center) { return distanceTo(center, a) < distanceTo(center, b) ? b : a; }
+    static VeE futherTo(VeE a, VeE b, P2D center) { return distanceTo(center, a) < distanceTo(center, b) ? b : a; }
+    static Vehicle closedTo(Vehicle a, Vehicle b, P2D center) { return distanceTo(center, new P2D(a)) > distanceTo(center, new P2D(b)) ? b : a; }
 }
