@@ -26,8 +26,8 @@ public class Rect implements Comparable<Rect> {
         return this;
     }
 
-    Rect update(VeE VeEx) {
-        return update(VeEx.v);
+    Rect update(VehicleTick veEx) {
+        return update(veEx.v);
     }
 
     Rect combine(Rect rect) {
@@ -38,6 +38,7 @@ public class Rect implements Comparable<Rect> {
         return this;
     }
 
+    boolean isRectNaN() { return Double.isNaN(l) && Double.isNaN(t) && Double.isNaN(b) && Double.isNaN(r);}
     Rect add(double range) { return new Rect(max(0, l - range),max(0, t - range),b+range, r+range); }
     double square() { return abs(r - l)*abs(b - t); }
     double dflt(double x, double y) { return hypot(x - l, y - t); }
@@ -53,7 +54,7 @@ public class Rect implements Comparable<Rect> {
     boolean include(Vehicle vehicle) { return include(vehicle.getX(), vehicle.getY()); }
     Rect scale(double factor) { return new Rect(l, t, t + (b-t)*factor, l + (r-l)*factor); }
     boolean include(double x, double y) { return x >= l && x <= r && y >= t && y <= b; }
-    boolean include(VeE v) { return v.x() >= l && v.x() <= r && v.y() >= t && v.y() <= b; }
+    boolean include(VehicleTick v) { return v.x() >= l && v.x() <= r && v.y() >= t && v.y() <= b; }
     Rect square(int i, int j, int n, double side) { return new Rect(l + j*side/n, t + i*side/n,
             t + (i+1)*side/n, l + (j+1)*side/n); }
     L[] sidesw(World world) { return new L[]{tlw(world), rlw(world), blw(world), llw(world)}; }

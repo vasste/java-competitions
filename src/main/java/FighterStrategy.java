@@ -59,22 +59,22 @@ public class FighterStrategy implements Strategy {
                 if (world.getTickIndex() - lastTick > 60) {
                     moves.add(new MB(ROTATE).angle(PI));
                 } else {
-                    if (rect.cX() - 0.8*gunnerFighter.getVisionRange() - gunnerFighter.getX() > 0.5 ||
-                        rect.cY() - 0.8*gunnerFighter.getVisionRange() - gunnerFighter.getY() > 0.5) {
+                    if (rect.cX() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getX() > 0.5 ||
+                        rect.cY() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getY() > 0.5) {
                         moves.add(new MB(MOVE)
-                                .x(rect.cX() - 0.8*gunnerFighter.getVisionRange() - gunnerFighter.getX())
-                                .y(rect.cY() - 0.8*gunnerFighter.getVisionRange() - gunnerFighter.getY()));
+                                .x(rect.cX() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getX())
+                                .y(rect.cY() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getY()));
                     } else {
                         if (eV().noneMatch(v -> v.getDistanceTo(gunnerFighter) < gunnerFighter.getVisionRange() + 10)) {
                             moves.add(new MB(MOVE)
-                                    .x(rect.cX() - 0.8*gunnerFighter.getX())
-                                    .y(rect.cY() - 0.8*gunnerFighter.getY()));
+                                    .x(rect.cX() - 0.7*gunnerFighter.getX())
+                                    .y(rect.cY() - 0.7*gunnerFighter.getY()));
                         } else {
                             if (me.getRemainingNuclearStrikeCooldownTicks() == 0 && me.getNextNuclearStrikeTickIndex() == -1) {
                                 Vehicle eVns = null;
                                 P2D pgF = new P2D(gunnerFighter);
                                 for (Vehicle eV : (Iterable<Vehicle>) eV()::iterator) {
-                                    if (see(gunnerFighter, eV)) {
+                                    if (see(gunnerFighter, eV, game, world)) {
                                         if (eVns == null) eVns = eV;
                                         else eVns = P2D.futherTo(eVns, eV, pgF);
                                     }
@@ -92,8 +92,22 @@ public class FighterStrategy implements Strategy {
         }
     }
 
-    static boolean see(Vehicle v, Vehicle u) {
-        return u.getDistanceTo(v) < v.getVisionRange();
+    static double wtVF(Game game, WeatherType weatherType) {
+        switch (weatherType) {
+            case CLEAR:
+                return game.getClearWeatherVisionFactor();
+            case CLOUD:
+                return game.getCloudWeatherVisionFactor();
+            case RAIN:
+                return game.getRainWeatherVisionFactor();
+        }
+        return 1;
+    }
+
+
+    static boolean see(Vehicle v, Vehicle u, Game game, World world) {
+        int[] wij = new P2D(v).inWorld(world);
+        return u.getDistanceTo(v) < v.getVisionRange() * wtVF(game, world.getWeatherByCellXY()[wij[0]][wij[1]]);
     }
 
     Stream<Vehicle> eV() { return vehiclesById.values().stream().filter(v -> v.getPlayerId() != me.getId()); }

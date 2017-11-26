@@ -2,19 +2,19 @@ import model.*;
 
 import java.util.Arrays;
 
-public class VeE implements Comparable<VeE> {
+public class VehicleTick implements Comparable<VehicleTick> {
     final Vehicle v;
     final int tI;
     final int[] gs;
 
-    VeE(Vehicle v, int tI) {
+    VehicleTick(Vehicle v, int tI) {
         this.v = v;
         this.tI = tI;
         this.gs = v.getGroups();
         Arrays.sort(this.gs);
     }
 
-    VeE(VeE veEx, VehicleUpdate vu, int tI) {
+    VehicleTick(VehicleTick veEx, VehicleUpdate vu, int tI) {
         this(new Vehicle(veEx.v, vu), tI);
     }
 
@@ -24,6 +24,7 @@ public class VeE implements Comparable<VeE> {
         return false;
     }
 
+    double getDistanceTo(VehicleTick vehicleTick) { return v.getDistanceTo(vehicleTick.v); }
     boolean isSelected() { return v.isSelected(); }
     boolean m(Player me) { return v.getPlayerId() == me.getId(); }
     boolean e(Player me) { return v.getPlayerId() != me.getId(); }
@@ -39,10 +40,11 @@ public class VeE implements Comparable<VeE> {
     double s() {return v.getMaxSpeed(); }
     boolean see(P2D p) { return P2D.distanceTo(p, v) < v.getVisionRange(); }
     boolean see(Unit u) { return u.getDistanceTo(v) < v.getVisionRange(); }
-    boolean see(VeE p) { return P2D.distanceTo(p, this) < v.getVisionRange(); }
-    boolean attack(VeE u) {
+    boolean see(VehicleTick p, double visionFactor) { return P2D.distanceTo(p, this) <= visionFactor * v.getVisionRange(); }
+    boolean attack(VehicleTick u) {
         if (type() == VehicleType.ARRV) return false;
         if (type() == VehicleType.FIGHTER && u.v.isAerial()) return P2D.distanceTo(u, this) <= v.getAerialAttackRange();
+        if (type() == VehicleType.FIGHTER && !u.v.isAerial()) return false;
         double duthis = P2D.distanceTo(u, this);
         return duthis <= v.getAerialAttackRange() || duthis <= v.getGroundAttackRange();
 
@@ -50,7 +52,7 @@ public class VeE implements Comparable<VeE> {
     double distanceTo(double x, double y) { return v.getDistanceTo(x, y); }
 
     @Override
-    public int compareTo(VeE o) {
+    public int compareTo(VehicleTick o) {
         int ix = U.cD(x(),o.x());
         if (ix == 0) return U.cD(y(),o.y());
         return ix;
