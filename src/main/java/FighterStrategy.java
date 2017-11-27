@@ -15,7 +15,7 @@ public class FighterStrategy implements Strategy {
     final Map<Long, Vehicle> vehiclesById = new HashMap<>();
     final Map<Long, Integer> vehiclesTick = new HashMap<>();
     Player me;
-    Queue<MB> moves = new LinkedList<>();
+    Queue<MoveBuilder> moves = new LinkedList<>();
     Long gunnerId;
 
     @Override
@@ -37,38 +37,38 @@ public class FighterStrategy implements Strategy {
         }
         if (me.getRemainingActionCooldownTicks() > 0) return;
         if (world.getTickIndex() < 1000) return;
-        MB nextMove = moves.poll();
+        MoveBuilder nextMove = moves.poll();
         if (nextMove == null) {
-            Rect rect = OfVG(eVt(VehicleType.TANK));
+            Rectangle rectangle = OfVG(eVt(VehicleType.TANK));
             if (gunnerId == null || vehiclesById.get(gunnerId) == null) {
                 Vehicle gunnerFighter = mVt(VehicleType.FIGHTER).reduce(null, (a, b) -> {
                     if (a == null) return b;
                     if (b == null) return a;
-                    return P2D.closedTo(a, b, rect.c());
+                    return P2D.closedTo(a, b, rectangle.c());
                 });
                 if (gunnerFighter != null) {
-                    moves.add(new MB(CLEAR_AND_SELECT).setRect(new Rect(gunnerFighter)).vehicleType(VehicleType.FIGHTER));
+                    moves.add(new MoveBuilder(CLEAR_AND_SELECT).setRect(new Rectangle(gunnerFighter)).vehicleType(VehicleType.FIGHTER));
                     gunnerId = gunnerFighter.getId();
-                    moves.add(new MB(MOVE)
-                            .x(rect.r - gunnerFighter.getVisionRange() - gunnerFighter.getX())
-                            .y(rect.b - gunnerFighter.getVisionRange() - gunnerFighter.getY()));
+                    moves.add(new MoveBuilder(MOVE)
+                            .x(rectangle.r - gunnerFighter.getVisionRange() - gunnerFighter.getX())
+                            .y(rectangle.b - gunnerFighter.getVisionRange() - gunnerFighter.getY()));
                 }
             } else {
                 Vehicle gunnerFighter = vehiclesById.get(gunnerId);
                 int lastTick = vehiclesTick.get(gunnerId);
                 if (world.getTickIndex() - lastTick > 60) {
-                    moves.add(new MB(ROTATE).angle(PI));
+                    moves.add(new MoveBuilder(ROTATE).angle(PI));
                 } else {
-                    if (rect.cX() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getX() > 0.5 ||
-                        rect.cY() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getY() > 0.5) {
-                        moves.add(new MB(MOVE)
-                                .x(rect.cX() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getX())
-                                .y(rect.cY() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getY()));
+                    if (rectangle.cX() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getX() > 0.5 ||
+                        rectangle.cY() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getY() > 0.5) {
+                        moves.add(new MoveBuilder(MOVE)
+                                .x(rectangle.cX() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getX())
+                                .y(rectangle.cY() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getY()));
                     } else {
                         if (eV().noneMatch(v -> v.getDistanceTo(gunnerFighter) < gunnerFighter.getVisionRange() + 10)) {
-                            moves.add(new MB(MOVE)
-                                    .x(rect.cX() - 0.7*gunnerFighter.getX())
-                                    .y(rect.cY() - 0.7*gunnerFighter.getY()));
+                            moves.add(new MoveBuilder(MOVE)
+                                    .x(rectangle.cX() - 0.7*gunnerFighter.getX())
+                                    .y(rectangle.cY() - 0.7*gunnerFighter.getY()));
                         } else {
                             if (me.getRemainingNuclearStrikeCooldownTicks() == 0 && me.getNextNuclearStrikeTickIndex() == -1) {
                                 Vehicle eVns = null;
@@ -80,9 +80,9 @@ public class FighterStrategy implements Strategy {
                                     }
                                 }
                                 if (eVns != null)
-                                    moves.add(new MB(ActionType.TACTICAL_NUCLEAR_STRIKE).vehicleId(gunnerId).x(eVns.getX()).y(eVns.getY()));
+                                    moves.add(new MoveBuilder(ActionType.TACTICAL_NUCLEAR_STRIKE).vehicleId(gunnerId).x(eVns.getX()).y(eVns.getY()));
                             }
-                            moves.add(new MB(MOVE).x(0).y(0));
+                            moves.add(new MoveBuilder(MOVE).x(0).y(0));
                         }
                     }
                 }
@@ -112,8 +112,8 @@ public class FighterStrategy implements Strategy {
 
     Stream<Vehicle> eV() { return vehiclesById.values().stream().filter(v -> v.getPlayerId() != me.getId()); }
     Stream<Vehicle> eVt(VehicleType vt) { return eV().filter(v -> v.getType() == vt); }
-    Rect OfVG(Stream<Vehicle> stream) {
-        return stream.reduce(new Rect(), (rect, v) -> rect.combine(new Rect(v)), Rect::combine);
+    Rectangle OfVG(Stream<Vehicle> stream) {
+        return stream.reduce(new Rectangle(), (rect, v) -> rect.combine(new Rectangle(v)), Rectangle::combine);
     }
     Stream<Vehicle> mV() { return vehiclesById.values().stream().filter(v -> v.getPlayerId() == me.getId()); }
     Stream<Vehicle> mVt(VehicleType vt) { return mV().filter(v -> v.getType() == vt); }

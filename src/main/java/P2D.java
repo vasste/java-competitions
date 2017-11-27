@@ -74,10 +74,10 @@ public class P2D implements Comparable<P2D> {
     static double distanceTo(VehicleTick a, VehicleTick b) { return hypot(a.x() - b.x(), a.y() - b.y()); }
     static double distanceTo(P2D a, Vehicle b) { return hypot(a.x - b.getX(), a.y - b.getY()); }
 
-    static boolean intersect(P2D a1, P2D b1, P2D a2, P2D b2) { return intersect(new L(a1, b1), new L(a2, b2)); }
+    static boolean intersect(P2D a1, P2D b1, P2D a2, P2D b2) { return intersect(new Line(a1, b1), new Line(a2, b2)); }
     static boolean intersect(P2D pa1, P2D pb1, P2D[] side) { return intersect(pa1, pb1, side[0], side[1]); }
     static boolean intersect(P2D[] aside, P2D[] bside) { return intersect(aside[0], aside[1], bside[0], bside[1]); }
-    static boolean intersect(L aside, L bside) { return intersect(aside.ps, bside.ps); }
+    static boolean intersect(Line aside, Line bside) { return intersect(aside.ps, bside.ps); }
     static VehicleTick closedTo(VehicleTick a, VehicleTick b, P2D center) { return distanceTo(center, a) > distanceTo(center, b) ? b : a; }
     static P2D closedTo(P2D a, P2D b, P2D center) { return distanceTo(center, a) > distanceTo(center, b) ? b : a; }
     static Vehicle futherTo(Vehicle a, Vehicle b, P2D center) { return distanceTo(center, a) < distanceTo(center, b) ? b : a; }

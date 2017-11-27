@@ -1,11 +1,11 @@
-public class IA implements Comparable<IA> {
-    static IA ZERO = new IA(0);
+public class Accumulator implements Comparable<Accumulator> {
+    static Accumulator ZERO = new Accumulator(0);
     long value;
     long n;
 
-    public IA() {}
+    public Accumulator() {}
 
-    public IA(long value) {
+    public Accumulator(long value) {
         this.value = value;
         this.n = 1;
     }
@@ -16,5 +16,5 @@ public class IA implements Comparable<IA> {
     long v() { return value; }
 
     @Override
-    public int compareTo(IA o) { return Long.compare(value, o.value); }
+    public int compareTo(Accumulator o) { return Long.compare(value, o.value); }
 }

@@ -2,7 +2,7 @@ import model.ActionType;
 import model.Move;
 import model.VehicleType;
 
-public class MB {
+public class MoveBuilder {
     private ActionType action;
 
     private int group;
@@ -25,36 +25,36 @@ public class MB {
     private long facilityId = -1L;
     private long vehicleId = -1L;
 
-    static MB c(ActionType action) { return new MB(action); }
+    static MoveBuilder c(ActionType action) { return new MoveBuilder(action); }
 
-    public MB() { }
-    public MB(ActionType action) { this.action = action; }
+    public MoveBuilder() { }
+    public MoveBuilder(ActionType action) { this.action = action; }
 
-    MB setAction(ActionType action) { this.action = action; return this;}
-    MB group(int group) { this.group = group; return this; }
-    MB left(double left) { this.left = left; return this; }
-    MB top(double top) { this.top = top;return this; }
-    MB right(double right) { this.right = right;  return this; }
-    MB bottom(double bottom) { this.bottom = bottom; return this; }
-    MB x(double x) { this.x = x; return this; }
-    MB y(double y) { this.y = y; return this; }
-    MB dfCToXY(Rect current, double x, double y) {
+    MoveBuilder setAction(ActionType action) { this.action = action; return this;}
+    MoveBuilder group(int group) { this.group = group; return this; }
+    MoveBuilder left(double left) { this.left = left; return this; }
+    MoveBuilder top(double top) { this.top = top;return this; }
+    MoveBuilder right(double right) { this.right = right;  return this; }
+    MoveBuilder bottom(double bottom) { this.bottom = bottom; return this; }
+    MoveBuilder x(double x) { this.x = x; return this; }
+    MoveBuilder y(double y) { this.y = y; return this; }
+    MoveBuilder dfCToXY(Rectangle current, double x, double y) {
         this.y = y - current.cY();
         this.x = x - current.cX();
         return this;
     }
-    MB dfLtToXY(Rect current, double x, double y) {
+    MoveBuilder dfLtToXY(Rectangle current, double x, double y) {
         this.y = y - current.t;
         this.x = x - current.l;
         return this;
     }
-    MB angle(double angle) { this.angle = angle; return this; }
-    MB factor(double factor) { this.factor = factor; return this; }
-    MB maxSpeed(double maxSpeed) { this.maxSpeed = maxSpeed; return this; }
-    MB maxAngularSpeed(double maxAngularSpeed) { this.maxAngularSpeed = maxAngularSpeed; return this; }
-    MB vehicleType(VehicleType vehicleType) { this.vehicleType = vehicleType; return this; }
-    MB facilityId(long facilityId) { this.facilityId = facilityId; return this; }
-    MB vehicleId(long vehicleId) { this.vehicleId = vehicleId; return this; }
+    MoveBuilder angle(double angle) { this.angle = angle; return this; }
+    MoveBuilder factor(double factor) { this.factor = factor; return this; }
+    MoveBuilder maxSpeed(double maxSpeed) { this.maxSpeed = maxSpeed; return this; }
+    MoveBuilder maxAngularSpeed(double maxAngularSpeed) { this.maxAngularSpeed = maxAngularSpeed; return this; }
+    MoveBuilder vehicleType(VehicleType vehicleType) { this.vehicleType = vehicleType; return this; }
+    MoveBuilder facilityId(long facilityId) { this.facilityId = facilityId; return this; }
+    MoveBuilder vehicleId(long vehicleId) { this.vehicleId = vehicleId; return this; }
     Move setMove(Move dst) {
         dst.setGroup(group);
 
@@ -79,17 +79,17 @@ public class MB {
         return dst;
     }
 
-    MB setRect(Rect rect) {
-        left(rect.l);
-        right(rect.r);
-        top(rect.t);
-        bottom(rect.b);
+    MoveBuilder setRect(Rectangle rectangle) {
+        left(rectangle.l);
+        right(rectangle.r);
+        top(rectangle.t);
+        bottom(rectangle.b);
         return this;
     }
 
     @Override
     public String toString() {
-        return "MB{" +
+        return "MoveBuilder{" +
                 "action=" + action +
                 ", group=" + group +
                 ", left=" + left +

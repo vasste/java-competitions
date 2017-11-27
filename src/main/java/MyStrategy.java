@@ -10,7 +10,7 @@ import static model.VehicleType.*;
 
 public final class MyStrategy implements Strategy {
 
-    GS gameState = GS.I;
+    GameState gameState = GameState.GROUP_CREATION;
     GGS[] ggs = new GGS[]{GGS.I, GGS.I, GGS.I};
     GGS[] ggsI = new GGS[]{GGS.I, GGS.I};
     double minGSpeed = 0;
@@ -22,24 +22,26 @@ public final class MyStrategy implements Strategy {
     TerrainType[][] terrainTypes;
     final Map<Long, VehicleTick> mVById = new HashMap<>();
     final Map<Long, VehicleTick> eVById = new HashMap<>();
-    final Map<VehicleType, IA> vehicles = new HashMap<>();
-    Queue<MB> moves = new LinkedList<>();
+    final Map<VehicleType, Accumulator> vehicles = new HashMap<>();
+    Queue<MoveBuilder> moves = new LinkedList<>();
     int[] pG = new int[3];
     VehicleType[] pT = new VehicleType[3];
-    Deque<MB> gm1 = new LinkedList<>();
-    Deque<MB> gm2 = new LinkedList<>();
     Map<VehicleType, Long> fvId = new HashMap<>();
     Map<Integer, P2D> vGd = new HashMap<>();
     P2D nuclearStrikePoint;
     P2D nuclearStrikeGroupPoint;
     boolean noArial = false;
 
+    Deque<MoveBuilder> tankGroupingMoves = new LinkedList<>();
+    Deque<MoveBuilder> arrvGroupingMoves = new LinkedList<>();
+    Deque<MoveBuilder> ifvGroupingMoves = new LinkedList<>();
+
     @Override
     public void move(Player me, World world, Game game, Move move) {
         this.me = me;
         this.world = world;
         this.game = game;
-        Map<VehicleType, IA> vu = initVehicles(world);
+        Map<VehicleType, Accumulator> vu = initVehicles(world);
         if (random == null) random = new Random(game.getRandomSeed());
         Player[] players = world.getPlayers();
         Player enemy = null;
@@ -48,11 +50,11 @@ public final class MyStrategy implements Strategy {
         weatherTypes = world.getWeatherByCellXY();
         terrainTypes = world.getTerrainByCellXY();
 
-        MB nextMove = moves.poll();
+        MoveBuilder nextMove = moves.poll();
         if (nextMove == null) {
             double wordedSquare = world.getHeight()*world.getWidth();
             switch (gameState) {
-                case I:
+                case GROUP_CREATION:
                     for (VehicleTick vehicleTick : mVById.values()) {
                         if (vehicleTick.m(me)) {
                             Long id = fvId.get(vehicleTick.type());
@@ -64,126 +66,126 @@ public final class MyStrategy implements Strategy {
                         }
                     }
 
-                    Rect[] rects = sOfVT(TYPES);
-                    for (int i = 0; i < rects.length; i++) {
-                        ctG(GROUPS[i], TYPES[i], rects[i]);
+                    Rectangle[] rectangles = sOfVT(TYPES);
+                    for (int i = 0; i < rectangles.length; i++) {
+                        ctG(GROUPS[i], TYPES[i], rectangles[i]);
                     }
                     pT = new VehicleType[]{TANK, ARRV, IFV};
                     pG = new int[]{GT, GA, GI};
-                    gameState = GS.A;
+                    gameState = GameState.A;
                     break;
                 case A:
                     if (sum(vu, TYPES).zero()) {
-                        rects = sOfVT(TYPES);
-                        for (int i = 0; i < rects.length; i++) {
-                            sG(GROUPS[i], 1.6, rects[i].l, rects[i].t);
+                        rectangles = sOfVT(TYPES);
+                        for (int i = 0; i < rectangles.length; i++) {
+                            sG(GROUPS[i], 1.6, rectangles[i].l, rectangles[i].t);
                         }
-                        gameState = GS.G;
+                        gameState = GameState.G;
                     }
                     break;
                 case G:
                     if (sum(vu, ARRV, TANK, IFV).zero()) {
                         int[] ait = new int[]{GA,GI,GT};
-                        Rect[] rs = sOfVT(ARRV, IFV, TANK);
-                        G.setupGroupingMoves(gm1, gm2, rs, pG, ggsI, ait);
-                        gameState = GS.GG;
+                        Rectangle[] rs = sOfVT(ARRV, IFV, TANK);
+                        //OrderGraph.setupGroupingMoves(tankGroupingMoves, arrvGroupingMoves, ifvGroupingMoves, rs, pG, ggsI, ait);
+                        gameState = GameState.GG;
                     }
                     if (sum(vu, FIGHTER, HELICOPTER).zero()) gatherFH(vu);
                     break;
                 case GG:
                     boolean fh = false, at = false, it = false;
-                    Rect[] groupRects = sOfVG(pG);
+                    Rectangle[] groupRectangles = sOfVG(pG);
                     if (sum(vu, pT[1], pT[0]).zero()) {
-                        MB mb = gm1.pollLast();
-                        if (mb != null) {
-                            moves.add(mb);
-                            moves.add(gm1.pollLast());
+                        MoveBuilder moveBuilder = tankGroupingMoves.pollLast();
+                        if (moveBuilder != null) {
+                            moves.add(moveBuilder);
+                            moves.add(tankGroupingMoves.pollLast());
                         }
                         else if (ggs[2].ordinal() <= GGS.INX.ordinal() || ggs[2] == GGS.F)
-                                at = gatherAG(5, ggs, 1, ggsI[0], groupRects[1], groupRects[0], groupRects[2]);
+                                at = gatherAG(5, ggs, 1, ggsI[0], groupRectangles[1], groupRectangles[0], groupRectangles[2]);
                     }
                     if (sum(vu, pT[2], pT[0]).zero()) {
-                        MB mb = gm2.pollLast();
-                        if (mb != null) {
-                            moves.add(mb);
-                            moves.add(gm2.pollLast());
-                        }
-                        else if (ggs[1].ordinal() <= GGS.INX.ordinal() || ggs[1] == GGS.F) {
-                            it = gatherAG( 5, ggs, 2, ggsI[1], groupRects[2], groupRects[0], groupRects[1]);
-                        }
+//                        MoveBuilder moveBuilder = gm2.pollLast();
+//                        if (moveBuilder != null) {
+//                            moves.add(moveBuilder);
+//                            moves.add(gm2.pollLast());
+//                        }
+//                        else if (ggs[1].ordinal() <= GGS.INX.ordinal() || ggs[1] == GGS.F) {
+//                            it = gatherAG( 5, ggs, 2, ggsI[1], groupRectangles[2], groupRectangles[0], groupRectangles[1]);
+//                        }
                     }
                     if (sum(vu, FIGHTER, HELICOPTER).zero()) fh = gatherFH(vu);
                     if (fh && at && it) {
-                        moves.add(new MB(CLEAR_AND_SELECT).setRect(new Rect(world)));
-                        moves.add(new MB(ASSIGN).group(GG));
-                        gameState = GS.M;
+                        moves.add(new MoveBuilder(CLEAR_AND_SELECT).setRect(new Rectangle(world)));
+                        moves.add(new MoveBuilder(ASSIGN).group(GG));
+                        gameState = GameState.M;
                     }
                     break;
                 case FHNSD:
                     if (enemy.getNextNuclearStrikeTickIndex() > 0) {
-                        Rect rect = OfV(gV(GFH));
-                        if (rect.include(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY())) {
+                        Rectangle rectangle = OfV(gV(GFH));
+                        if (rectangle.include(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY())) {
                             nuclearStrikePoint = new P2D(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY());
-                            nuclearStrikeGroupPoint = rect.c();
+                            nuclearStrikeGroupPoint = rectangle.c();
                             sG(GFH, 10, enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY());
-                            gameState = GS.FHBNSD;
+                            gameState = GameState.FHBNSD;
                             applyNextCommand(move);
-                        } else gameState = GS.ENSF;
-                    } else gameState = GS.ENSF;
+                        } else gameState = GameState.ENSF;
+                    } else gameState = GameState.ENSF;
                     break;
                 case M:
-                    Rect[] evR = sOfVT(eV(), FIGHTER, HELICOPTER, TANK);
+                    Rectangle[] evR = sOfVT(eV(), FIGHTER, HELICOPTER, TANK);
                     if ((evR[0].square()/wordedSquare >= 0.5 || evR[1].square()/wordedSquare >= 0.5) && evR[2].square()/wordedSquare < 0.1) {
-                        Rect rect = OfVG(GG);
-                        mkGM(GG, rect, rect.cX(), rect.cY(), 0, true);
-                        Rect rectFH = sOfVG(GFH)[0];
-                        sG(GFH, 1.4, rectFH.l, rectFH.t);
-                        gameState = GS.FHFG;
+                        Rectangle rectangle = OfVG(GG);
+                        mkGM(GG, rectangle, rectangle.cX(), rectangle.cY(), 0, true);
+                        Rectangle rectangleFH = sOfVG(GFH)[0];
+                        sG(GFH, 1.4, rectangleFH.l, rectangleFH.t);
+                        gameState = GameState.FHFG;
                     } else {
-                        if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GG, move, enemy, GS.BNSD)) return;
+                        if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GG, move, enemy, GameState.BNSD)) return;
                         if (!mkNS(GG)) {
                             VehicleTick ep = cEP(false, GG);
                             if (ep == null) return;
                             if (mV().filter(v -> v.attack(ep)).count() < 5) {
                                 if (!mkGM(GG, ep.x(), ep.y(), minGSpeed * tS(game, OfVG(GT, GA, GI), world, terrainTypes) * 0.65,
                                         sum(vu, FIGHTER, HELICOPTER, TANK, IFV, ARRV).value)) {
-                                    gameState = GS.FG;
+                                    gameState = GameState.FG;
                                 }
                             }
                         }
                     }
                     break;
                 case FG:
-                    if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GG, move, enemy, GS.BNSD)) return;
-                    if (sum(vu, FIGHTER, HELICOPTER, TANK, IFV, ARRV).zero()) gameState = GS.M;
+                    if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GG, move, enemy, GameState.BNSD)) return;
+                    if (sum(vu, FIGHTER, HELICOPTER, TANK, IFV, ARRV).zero()) gameState = GameState.M;
                     break;
                 case FHFG:
-                    if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GFH, move, enemy, GS.FHNSD)) return;
-                    if (sum(vu, FIGHTER, HELICOPTER).zero()) gameState = GS.ENSF;
+                    if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GFH, move, enemy, GameState.FHNSD)) return;
+                    if (sum(vu, FIGHTER, HELICOPTER).zero()) gameState = GameState.ENSF;
                     break;
                 case ENSF:
-                    Rect rect = OfVG(GFH);
-                    if (rect.isRectNaN()) {
+                    Rectangle rectangle = OfVG(GFH);
+                    if (rectangle.isRectNaN()) {
                         noArial = true;
-                        gameState = GS.M;
+                        gameState = GameState.M;
                         return;
                     }
-                    if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GFH, move, enemy, GS.FHNSD)) return;
+                    if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GFH, move, enemy, GameState.FHNSD)) return;
                     evR = sOfVT(eV(), FIGHTER, HELICOPTER);
                     if (evR[0].square()/wordedSquare < 0.15 && evR[1].square()/wordedSquare < 0.15) {
-                        Rect drs = OfVG(GG);
-                        if (rect.dfct(drs) > U.EPS) {
-                            mkGM(GFH, rect, drs.cX(), drs.cY(), minASpeed, true);
-                            gameState = GS.FHFG;
+                        Rectangle drs = OfVG(GG);
+                        if (rectangle.dfct(drs) > U.EPS) {
+                            mkGM(GFH, rectangle, drs.cX(), drs.cY(), minASpeed, true);
+                            gameState = GameState.FHFG;
                         } else {
-                            gameState = GS.FG;
+                            gameState = GameState.FG;
                         }
                     } else
                         if (!mkNS(GFH)) {
                             VehicleTick ep = cEP(true, GFH);
                             if (ep == null) return;
                             if (mVt(FIGHTER, HELICOPTER).filter(v -> v.attack(ep)).count() < 5) {
-                                mkGM(GFH, ep.x(), ep.y(), minASpeed * wS(game, rect, world, weatherTypes) * 0.75, sum(vu, FIGHTER, HELICOPTER).v());
+                                mkGM(GFH, ep.x(), ep.y(), minASpeed * wS(game, rectangle, world, weatherTypes) * 0.75, sum(vu, FIGHTER, HELICOPTER).v());
                             }
                         }
                     break;
@@ -193,7 +195,7 @@ public final class MyStrategy implements Strategy {
                         sG(GG, 0.2, center.x + (nuclearStrikePoint.x - nuclearStrikeGroupPoint.x),
                                 center.y + (nuclearStrikePoint.y - nuclearStrikeGroupPoint.y));
                         applyNextCommand(move);
-                        gameState = GS.FG;
+                        gameState = GameState.FG;
                     }
                     break;
                 case FHBNSD:
@@ -202,7 +204,7 @@ public final class MyStrategy implements Strategy {
                         sG(GFH, 0.2, center.x + (nuclearStrikePoint.x - nuclearStrikeGroupPoint.x),
                                 center.y + (nuclearStrikePoint.y - nuclearStrikeGroupPoint.y));
                         applyNextCommand(move);
-                        gameState = GS.FHFG;
+                        gameState = GameState.FHFG;
                     }
                     break;
             }
@@ -211,11 +213,11 @@ public final class MyStrategy implements Strategy {
         }
     }
 
-    private boolean nuclearStrikeDetected(int id, Move move, Player enemy, GS nextState) {
-        Rect rect = OfV(gV(id));
-        if (rect.include(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY())) {
+    private boolean nuclearStrikeDetected(int id, Move move, Player enemy, GameState nextState) {
+        Rectangle rectangle = OfV(gV(id));
+        if (rectangle.include(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY())) {
             nuclearStrikePoint = new P2D(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY());
-            nuclearStrikeGroupPoint = rect.c();
+            nuclearStrikeGroupPoint = rectangle.c();
             sG(id, 10, enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY());
             gameState = nextState;
             applyNextCommand(move);
@@ -226,18 +228,18 @@ public final class MyStrategy implements Strategy {
 
     void applyNextCommand(Move move) {
         if (me.getRemainingActionCooldownTicks() > 0) return;
-        MB nextMove = moves.poll();
+        MoveBuilder nextMove = moves.poll();
         nextMove.setMove(move);
     }
 
-    private boolean gatherFH(Map<VehicleType, IA> vu) {
-        Rect[] rects = sOfVG(GF, GH, pG[0]);
-        boolean fh = gatherAG(5, ggs, 0, GGS.INX, rects);
+    private boolean gatherFH(Map<VehicleType, Accumulator> vu) {
+        Rectangle[] rectangles = sOfVG(GF, GH, pG[0]);
+        boolean fh = gatherAG(5, ggs, 0, GGS.INX, rectangles);
         Long id = fvId.get(pT[0]);
         VehicleTick ve = mVById.get(id);
         if (fh && ve.tI < world.getTickIndex()) {
-            Rect srs = GFH == 0 ? OfVG(GF, GH) : OfVG(GFH);
-            Rect drs = sum(vu, pT[0]).zero() ? OfVG(pG[0]) : cFlp(ve);
+            Rectangle srs = GFH == 0 ? OfVG(GF, GH) : OfVG(GFH);
+            Rectangle drs = sum(vu, pT[0]).zero() ? OfVG(pG[0]) : cFlp(ve);
             if (GFH == 0) ctGFH(GFH = 6);
             if (srs.dfct(drs) > U.EPS) {
                 mkGM(GFH, srs, drs.cX(), drs.cY(), minASpeed, true);
@@ -246,10 +248,10 @@ public final class MyStrategy implements Strategy {
         return fh;
     }
 
-    Rect cFlp(VehicleTick lc) {
-        return new Rect(lc.x() - 2.0, lc.y() - 2.0, lc.y() + 84.0, lc.x() + 84.0);
+    Rectangle cFlp(VehicleTick lc) {
+        return new Rectangle(lc.x() - 2.0, lc.y() - 2.0, lc.y() + 84.0, lc.x() + 84.0);
     }
-    static double wS(Game game, Rect rs, World world, WeatherType[][] weatherTypes) {
+    static double wS(Game game, Rectangle rs, World world, WeatherType[][] weatherTypes) {
         int[] wij = rs.c().inWorld(world);
         return wsF(game, weatherTypes[wij[0]][wij[0]]);
     }
@@ -259,7 +261,7 @@ public final class MyStrategy implements Strategy {
         return wvF(game, weatherTypes[wij[0]][wij[0]]);
     }
 
-    static double tS(Game game, Rect rs, World world, TerrainType[][] terrainTypes) {
+    static double tS(Game game, Rectangle rs, World world, TerrainType[][] terrainTypes) {
         int[] wij = rs.c().inWorld(world);
         return ttF(game, terrainTypes[wij[0]][wij[0]]);
     }
@@ -300,37 +302,37 @@ public final class MyStrategy implements Strategy {
         return 1;
     }
 
-    static IA acc(Map<VehicleType, IA> vu, VehicleType vehicleType) { return vu.getOrDefault(vehicleType, IA.ZERO); }
-    static IA sum(Map<VehicleType, IA> vu, VehicleType... vehicleType) {
-        return new IA(Arrays.stream(vehicleType).map(vt -> acc(vu, vt)).mapToLong(IA::v).sum());
+    static Accumulator acc(Map<VehicleType, Accumulator> vu, VehicleType vehicleType) { return vu.getOrDefault(vehicleType, Accumulator.ZERO); }
+    static Accumulator sum(Map<VehicleType, Accumulator> vu, VehicleType... vehicleType) {
+        return new Accumulator(Arrays.stream(vehicleType).map(vt -> acc(vu, vt)).mapToLong(Accumulator::v).sum());
     }
 
-    private boolean gatherAG(double scale, GGS[] ggs, int i, GGS bne, Rect... rects) {
-        Rect rectA = rects[0]; Rect rectB = rects[1];
-        boolean gd = ggs[i] == GGS.F || rects[0].dfct(rects[1]) <= scale;
+    private boolean gatherAG(double scale, GGS[] ggs, int i, GGS bne, Rectangle... rectangles) {
+        Rectangle rectangleA = rectangles[0]; Rectangle rectangleB = rectangles[1];
+        boolean gd = ggs[i] == GGS.F || rectangles[0].dfct(rectangles[1]) <= scale;
         switch (ggs[i]) {
             case I:
-                if (rectA.cX() != rectB.cX() && rectA.cY() != rectB.cY()) ggs[i] = bne;
-                else if (rectA.cX() != rectB.cX()) ggs[i] = GGS.INY;
-                else if (rectA.cY() != rectB.cY()) ggs[i] = GGS.INX;
+                if (rectangleA.cX() != rectangleB.cX() && rectangleA.cY() != rectangleB.cY()) ggs[i] = bne;
+                else if (rectangleA.cX() != rectangleB.cX()) ggs[i] = GGS.INY;
+                else if (rectangleA.cY() != rectangleB.cY()) ggs[i] = GGS.INX;
                 break;
             case INX:
-                if (rects[2].l > rectB.l) scale *= -1;
-                if (U.eD(rectA.cX(), rectB.cX() + scale)) ggs[i] = GGS.NY;
-                else mkGM(rectA.g, rectA, rectB.cX() + scale, rectA.cY());
+                if (rectangles[2].l > rectangleB.l) scale *= -1;
+                if (U.eD(rectangleA.cX(), rectangleB.cX() + scale)) ggs[i] = GGS.NY;
+                else mkGM(rectangleA.g, rectangleA, rectangleB.cX() + scale, rectangleA.cY());
                 break;
             case INY:
-                if (rects[2].t > rectB.t) scale *= -1;
-                if (U.eD(rectA.cY(), rectB.cY() + scale)) ggs[i] = GGS.NX;
-                else mkGM(rectA.g, rectA, rectA.cX(), rectB.cY() + scale);
+                if (rectangles[2].t > rectangleB.t) scale *= -1;
+                if (U.eD(rectangleA.cY(), rectangleB.cY() + scale)) ggs[i] = GGS.NX;
+                else mkGM(rectangleA.g, rectangleA, rectangleA.cX(), rectangleB.cY() + scale);
                 break;
             case NX:
-                if (U.eD(rectA.cX(), rectB.cX())) ggs[i] = GGS.F;
-                else mkGM(rectA.g, rectA, rectB.cX(), rectA.cY());
+                if (U.eD(rectangleA.cX(), rectangleB.cX())) ggs[i] = GGS.F;
+                else mkGM(rectangleA.g, rectangleA, rectangleB.cX(), rectangleA.cY());
                 break;
             case NY:
-                if (U.eD(rectA.cY(), rectB.cY())) ggs[i] = GGS.F;
-                else mkGM(rectA.g, rectA, rectA.cX(), rectB.cY());
+                if (U.eD(rectangleA.cY(), rectangleB.cY())) ggs[i] = GGS.F;
+                else mkGM(rectangleA.g, rectangleA, rectangleA.cX(), rectangleB.cY());
                 break;
         }
         return gd;
@@ -364,9 +366,9 @@ public final class MyStrategy implements Strategy {
             }
         }
         if (eVns != null) {
-            Rect rect = sOfVG(id)[0];
-            mkGM(id, rect, rect.cX(), rect.cY(), 0, true);
-            moves.add(new MB(TACTICAL_NUCLEAR_STRIKE).vehicleId(cff.id()).x(eVns.x()).y(eVns.y()));
+            Rectangle rectangle = sOfVG(id)[0];
+            mkGM(id, rectangle, rectangle.cX(), rectangle.cY(), 0, true);
+            moves.add(new MoveBuilder(TACTICAL_NUCLEAR_STRIKE).vehicleId(cff.id()).x(eVns.x()).y(eVns.y()));
             return true;
         }
         return false;
@@ -376,10 +378,10 @@ public final class MyStrategy implements Strategy {
         P2D destination = vGd.get(id);
         if (destination != null && destination.compareTo(new P2D(x, y)) == 0 && updates > 0)
             return true;
-        Rect rect = OfV(gV(id));
-        if (rect.include(x, y)) {
+        Rectangle rectangle = OfV(gV(id));
+        if (rectangle.include(x, y)) {
             vGd.remove(id);
-            if (rect.square() > 15_000) sG(id, 0.9, rect.cX(), rect.cY());
+            if (rectangle.square() > 15_000) sG(id, 0.9, rectangle.cX(), rectangle.cY());
             else {
                 P2D center = new P2D(x, y);
                 VehicleTick ctlev = null;
@@ -387,62 +389,62 @@ public final class MyStrategy implements Strategy {
                     if (ctlev == null) ctlev = v;
                     else ctlev = P2D.closedTo(ctlev, v, center);
                 }
-                if (ctlev == null || U.eD(x, ctlev.x()) && U.eD(y, ctlev.y())) rG(id, PI / 4, rect.cX(), rect.cY());
+                if (ctlev == null || U.eD(x, ctlev.x()) && U.eD(y, ctlev.y())) rG(id, PI / 4, rectangle.cX(), rectangle.cY());
                 else {
-                    moves.add(new MB(CLEAR_AND_SELECT).group(id));
-                    moves.add(MB.c(MOVE).x(x - ctlev.x()).y(y - ctlev.y()).maxSpeed(ms));
+                    moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
+                    moves.add(MoveBuilder.c(MOVE).x(x - ctlev.x()).y(y - ctlev.y()).maxSpeed(ms));
                     vGd.put(id, new P2D(x, y, world.getTickIndex()));
                 }
             }
             return false;
         } else {
-            moves.add(new MB(CLEAR_AND_SELECT).group(id));
-            if ((rect.r - rect.l)/2 + x >= world.getWidth()) x = world.getWidth() - (rect.r - rect.l)/2;
-            if ((rect.b - rect.t)/2 + y >= world.getHeight()) y = world.getHeight() - (rect.b - rect.t)/2;
-            moves.add(MB.c(MOVE).dfCToXY(rect, x, y).maxSpeed(ms));
+            moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
+            if ((rectangle.r - rectangle.l)/2 + x >= world.getWidth()) x = world.getWidth() - (rectangle.r - rectangle.l)/2;
+            if ((rectangle.b - rectangle.t)/2 + y >= world.getHeight()) y = world.getHeight() - (rectangle.b - rectangle.t)/2;
+            moves.add(MoveBuilder.c(MOVE).dfCToXY(rectangle, x, y).maxSpeed(ms));
             vGd.put(id, new P2D(x, y, world.getTickIndex()));
             return true;
         }
     }
 
-    void mkGM(int id, Rect gr, double x, double y) {
+    void mkGM(int id, Rectangle gr, double x, double y) {
         mkGM(id, gr, x, y, 0, true);
     }
 
-    void mkGM(int id, Rect groupRect, double x, double y, double ms, boolean select) {
-        if (select) moves.add(new MB(CLEAR_AND_SELECT).group(id));
-        moves.add(MB.c(MOVE).dfCToXY(groupRect, x, y).maxSpeed(ms));
+    void mkGM(int id, Rectangle groupRectangle, double x, double y, double ms, boolean select) {
+        if (select) moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
+        moves.add(MoveBuilder.c(MOVE).dfCToXY(groupRectangle, x, y).maxSpeed(ms));
     }
 
-    void ctG(int id, VehicleType vehicleType, Rect rect) {
-        moves.add(new MB(CLEAR_AND_SELECT).vehicleType(vehicleType).setRect(new Rect(0,0,world.getHeight(),world.getWidth())));
-        moves.add(MB.c(ASSIGN).group(id));
-        MB mb = MB.c(MOVE);
-        mb.x(20*((int)rect.l/74));
-        mb.y(20*((int)rect.t/74));
-        moves.add(mb);
+    void ctG(int id, VehicleType vehicleType, Rectangle rectangle) {
+        moves.add(new MoveBuilder(CLEAR_AND_SELECT).vehicleType(vehicleType).setRect(new Rectangle(0,0,world.getHeight(),world.getWidth())));
+        moves.add(MoveBuilder.c(ASSIGN).group(id));
+        MoveBuilder moveBuilder = MoveBuilder.c(MOVE);
+        moveBuilder.x(20*((int) rectangle.l/74));
+        moveBuilder.y(20*((int) rectangle.t/74));
+        moves.add(moveBuilder);
     }
 
     void rG(int id, double angle, double x, double y) {
-        moves.add(new MB(CLEAR_AND_SELECT).group(id));
-        moves.add(MB.c(ROTATE).angle(angle).x(x).y(y));
+        moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
+        moves.add(MoveBuilder.c(ROTATE).angle(angle).x(x).y(y));
     }
 
     void sG(int id, double scale, double x, double y) {
-        moves.add(new MB(CLEAR_AND_SELECT).group(id));
-        moves.add(MB.c(SCALE).factor(scale).x(x).y(y));
+        moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
+        moves.add(MoveBuilder.c(SCALE).factor(scale).x(x).y(y));
     }
 
     void ctGFH(int id) {
-        moves.add(new MB(CLEAR_AND_SELECT).vehicleType(HELICOPTER).setRect(new Rect(world)));
-        moves.add(new MB(ADD_TO_SELECTION).vehicleType(FIGHTER).setRect(new Rect(world)));
-        moves.add(MB.c(ASSIGN).group(id));
+        moves.add(new MoveBuilder(CLEAR_AND_SELECT).vehicleType(HELICOPTER).setRect(new Rectangle(world)));
+        moves.add(new MoveBuilder(ADD_TO_SELECTION).vehicleType(FIGHTER).setRect(new Rectangle(world)));
+        moves.add(MoveBuilder.c(ASSIGN).group(id));
     }
 
-    Map<VehicleType, IA> initVehicles(World world) {
-        Map<VehicleType, IA> vehicleUpdates = new HashMap<>();
+    Map<VehicleType, Accumulator> initVehicles(World world) {
+        Map<VehicleType, Accumulator> vehicleUpdates = new HashMap<>();
         for (Vehicle vehicle : world.getNewVehicles()) {
-            vehicles.computeIfAbsent(vehicle.getType(), t -> new IA()).inc();
+            vehicles.computeIfAbsent(vehicle.getType(), t -> new Accumulator()).inc();
             if (vehicle.getPlayerId() == me.getId()) {
                 mVById.put(vehicle.getId(), new VehicleTick(vehicle, world.getTickIndex()));
             } else {
@@ -468,7 +470,7 @@ public final class MyStrategy implements Strategy {
                 VehicleTick oV = mVById.get(vu.getId());
                 VehicleTick nV = mVById.computeIfPresent(vu.getId(), (key, vehicle) -> new VehicleTick(vehicle, vu, world.getTickIndex()));
                 if (oV != null && oV.getDistanceTo(nV) > U.EPS/10) {
-                    vehicleUpdates.computeIfAbsent(oV.type(), t -> new IA(0)).inc();
+                    vehicleUpdates.computeIfAbsent(oV.type(), t -> new Accumulator(0)).inc();
                 }
                 eVById.computeIfPresent(vu.getId(), (key, vehicle) -> new VehicleTick(vehicle, vu, world.getTickIndex()));
             }
@@ -478,32 +480,32 @@ public final class MyStrategy implements Strategy {
 
     Stream<VehicleTick> mV() { return mVById.values().stream(); }
     Stream<VehicleTick> mVt(VehicleType... vts) { return mV().filter(v -> Arrays.stream(vts).anyMatch(vt -> v.type() == vt)); }
-    Rect OfV(Stream<VehicleTick> vhs) { return vhs.reduce(new Rect(), Rect::update, Rect::combine); }
+    Rectangle OfV(Stream<VehicleTick> vhs) { return vhs.reduce(new Rectangle(), Rectangle::update, Rectangle::combine); }
     Stream<VehicleTick> gV(int id) { return mV().filter(vt -> vt.inG(id)); }
     Stream<VehicleTick> eV() { return eVById.values().stream(); }
 
-    Rect[] sOfVG(int... ids) {
-        Rect[] initial = new Rect[ids.length];
-        for (int i = 0; i < initial.length; i++) { initial[i] = new Rect();initial[i].g = ids[i]; }
+    Rectangle[] sOfVG(int... ids) {
+        Rectangle[] initial = new Rectangle[ids.length];
+        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle();initial[i].g = ids[i]; }
         return mV().reduce(initial, (rects, veEx) -> {
             for (int i = 0; i < ids.length; i++) if (veEx.inG(ids[i])) rects[i].update(veEx);return rects;
         }, (rl, rr) -> { for (int i = 0; i < rl.length; i++) rl[i] = rl[i].combine(rr[i]); return rl; });
     }
 
-    Rect[] sOfVT(VehicleType... types) { return sOfVT(mV(), types); }
-    Rect[] sOfVT(Stream<VehicleTick> stream, VehicleType... types) {
-        Rect[] initial = new Rect[types.length];
-        for (int i = 0; i < initial.length; i++) { initial[i] = new Rect(); }
+    Rectangle[] sOfVT(VehicleType... types) { return sOfVT(mV(), types); }
+    Rectangle[] sOfVT(Stream<VehicleTick> stream, VehicleType... types) {
+        Rectangle[] initial = new Rectangle[types.length];
+        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle(); }
         return stream.reduce(initial, (rects, veEx) -> {
             for (int i = 0; i < types.length; i++) if (veEx.type() == types[i]) rects[i].update(veEx);return rects;
         }, (rl, rr) -> { for (int i = 0; i < rl.length; i++) rl[i] = rl[i].combine(rr[i]); return rl; });
     }
 
-    Rect OfVG(int... ids) {
-        return mV().reduce(new Rect(), (rect, veEx) -> {
+    Rectangle OfVG(int... ids) {
+        return mV().reduce(new Rectangle(), (rect, veEx) -> {
             for (int id : ids) if (veEx.inG(id)) rect.update(veEx);
             return rect;
-        }, Rect::combine);
+        }, Rectangle::combine);
     }
 
     final static VehicleType[] TYPES = new VehicleType[]{TANK, ARRV, IFV, HELICOPTER, FIGHTER};
@@ -518,7 +520,7 @@ public final class MyStrategy implements Strategy {
     public int GFH = 0;
 
     private Random random;
-    public enum GS {I, A, G, GG, M, FG, BNSD, ENSF, FHFG, FHNSD, FHBNSD}
+    public enum GameState {GROUP_CREATION, A, G, GG, M, FG, BNSD, ENSF, FHFG, FHNSD, FHBNSD}
     public enum GGS { I, INX, INY, NX, NY, F }
     static final Boolean DEBUG = false;
 }

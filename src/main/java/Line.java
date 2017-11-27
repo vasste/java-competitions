@@ -2,12 +2,12 @@ import static java.lang.StrictMath.*;
 import static java.lang.StrictMath.max;
 import static java.lang.StrictMath.min;
 
-public class L {
+public class Line {
     double a, b, c;
     P2D[] ps;
 
-    L(P2D[] pq) { this(pq[0], pq[1]);}
-    L(P2D p, P2D q) {
+    Line(P2D[] pq) { this(pq[0], pq[1]);}
+    Line(P2D p, P2D q) {
         a = p.y - q.y;
         b = q.x - p.x;
         c = - a * p.x - b * p.y;
@@ -41,13 +41,13 @@ public class L {
         x[b] = t;
     }
 
-    static double angle(L a, L b) {
+    static double angle(Line a, Line b) {
         return acos(a.a*b.a + a.b*b.b);
     }
     static boolean intersect(P2D a, P2D b, P2D c, P2D d, P2D left, P2D right) {
         if (!intersect_1d (a.x, b.x, c.x, d.x) || ! intersect_1d (a.y, b.y, c.y, d.y)) return false;
-        L m = new L(a, b);
-        L n = new L(c, d);
+        Line m = new Line(a, b);
+        Line n = new Line(c, d);
         double zn = P2D.det(m.a, m.b, n.a, n.b);
         if (abs (zn) < U.EPS) {
             if (abs (m.dist (c)) > U.EPS || abs (n.dist (a)) > U.EPS)
