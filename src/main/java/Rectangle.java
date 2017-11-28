@@ -2,6 +2,8 @@ import model.Vehicle;
 import model.VehicleType;
 import model.World;
 
+import java.util.Deque;
+
 import static java.lang.Double.isNaN;
 import static java.lang.StrictMath.*;
 import static java.lang.StrictMath.hypot;
@@ -12,8 +14,10 @@ public class Rectangle implements Comparable<Rectangle> {
     public double l = Double.NaN,t = Double.NaN,b = Double.NaN,r = Double.NaN;
     public VehicleType vt;
     public int g;
+    public Deque<MoveBuilder> commands;
 
     Rectangle() {}
+    Rectangle(VehicleType vt) { this.vt = vt; }
     Rectangle(World world) { this(0, 0, world.getHeight(), world.getWidth()); }
     Rectangle(double l, double t, double b, double r) { this.l = l;this.t = t;this.b = b;this.r = r; }
     Rectangle(Vehicle v) { this(v.getX() - v.getRadius(), v.getY() - v.getRadius(), v.getY() + v.getRadius(), v.getX() + v.getRadius()); }

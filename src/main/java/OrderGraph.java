@@ -1,15 +1,12 @@
 import model.ActionType;
+import model.VehicleType;
+import model.World;
 
 import java.util.*;
 
 import static java.lang.StrictMath.max;
 
 public class OrderGraph {
-    public static void mij(int i, int j, int[][] md, int ms) {
-        if (i >= 3 || i < 0 || j < 0 || j >=3) return;
-        md[i][j] = ms;
-    }
-
     public static GraphVertex bfs(int[][] field, int si, int sj, int di, int dj) {
         Queue<GraphVertex> qp = new LinkedList<>();
         qp.add(new GraphVertex(si, sj, null));
@@ -37,41 +34,28 @@ public class OrderGraph {
         return false;
     }
 
-    public static boolean fM(int gid, int si, int sj, int di, int dj, Rectangle order, Deque<MoveBuilder> deque, double side) {
-        Rectangle dst = order.square(di, dj, 3, side);
-        deque.add(MoveBuilder.c(ActionType.MOVE).dfCToXY(order.square(si, sj, 3, side), dst.cX(), dst.cY()));
-        deque.addLast(MoveBuilder.c(ActionType.CLEAR_AND_SELECT).group(gid));
-        return true;
+    public static void setupGroupingMoves(Rectangle[] rectangles, World world) {
+        Path path = new Path(rectangles);
+        Map<Integer, Rectangle> gr = new HashMap<>();
+        for (int i = 0; i < rectangles.length; i++) {
+            gr.put(rectangles[i].g, rectangles[i]);
+        }
+        double side = max(Rectangle.ORDER.linew(), Rectangle.ORDER.lineh());
+        for (Map.Entry<Integer, GraphVertex> e : path.ends.entrySet()) {
+            Deque<MoveBuilder> commands = gr.get(e.getKey()).commands;
+            for (GraphVertex p = e.getValue(); p != null && p.prev != null; p = p.prev) {
+                Rectangle dst = Rectangle.ORDER.square(p.i, p.j, 3, side);
+                commands.add(MoveBuilder.c(ActionType.MOVE).dfCToXY(Rectangle.ORDER.square(p.prev.i, p.prev.j, 3, side), dst.cX(), dst.cY()));
+            }
+            commands.add(MoveBuilder.c(ActionType.CLEAR_AND_SELECT).vehicleType(gr.get(e.getKey()).vt).setRect(new Rectangle(world)));
+        }
     }
 
-//    public static void setupGroupingMoves(Deque<MoveBuilder> tankGroupingMoves, Deque<MoveBuilder> arrvGroupingMoves,
-//                                          Deque<MoveBuilder> ifvGroupingmoves,
-//                                          Rectangle[] rectangles, int[] pG, MyStrategy.GGS[] ggsI, int[] groups) {
-//        Path OT = new Path(rectangles, groups, pG, true);
-//        Path TO = new Path(rectangles, groups, pG, false);
-//        GraphVertex pkG1;
-//        GraphVertex pkG2;
-//        Path result;
-//        result = OT.count() > TO.count() ? TO : OT;
-//        pkG1 = result.end;
-//        pkG2 = result.pkG2;
-//        System.arraycopy(result.ggsI, 0, ggsI, 0, ggsI.length);
-//        Rectangle order = Rectangle.ORDER.scale(1.367);
-//        double side = max(order.linew(), order.lineh());
-//        for (GraphVertex p = pkG1.prev; p != null && p.prev != null; p = p.prev) fM(pG[1], p.prev.i, p.prev.j, p.i, p.j, order, tankGroupingMoves, side);
-//        for (GraphVertex p = pkG2.prev; p != null && p.prev != null; p = p.prev) fM(pG[2], p.prev.i, p.prev.j, p.i, p.j, order, arrvGroupingMoves, side);
-//    }
-
     static class Path {
-        GraphVertex end;
+        Map<Integer, GraphVertex> ends = new HashMap<>();
 
-        public Path(int[][] field, int di, int dj, int[] ij) {
-            end = bfs(field, ij[0], ij[1], di, dj);
-        }
-
-        public Path(Rectangle[] rectangles, int di, int dj, int dk, int... groups) {
+        public Path(Rectangle[] rectangles) {
             Rectangle order = Rectangle.ORDER;
-            int[] ij = null;
             int[][] field = new int[3][3];
             double side = max(order.linew(), order.lineh());
             for (int i = 0; i < field.length; i++) {
@@ -79,13 +63,13 @@ public class OrderGraph {
                     for (int k = 0; k < rectangles.length; k++) {
                         if (rectangles[k].cX() >= order.l + j*side/3 && rectangles[k].cX() <= order.l + (j+1)*side/3 &&
                                 rectangles[k].cY() >= order.t + i*side/3 && rectangles[k].cY() <= order.t + (i+1)*side/3) {
-                            field[i][j] = k + 1;
-                            if (k == dk) ij = new int[]{i,j};
+                            field[i][j] = rectangles[k].g;
                         }
                     }
                 }
             }
 
+            int[][] groups = new int[3][2];
             int[][] weight = new int[6][3];
             for (int i = 0; i < field.length; i++) {
                 for (int j = 0; j < field.length; j++) {
@@ -99,30 +83,46 @@ public class OrderGraph {
                 }
             }
 
+            boolean lineFound = false;
+            GraphVertex vehicleTypeEnd = null;
+            int group = 0;
             for (int i = 0; i < weight.length; i++) {
                 if (weight[i][0] == 3) {
-                    line = true;
+                    lineFound = true;
                     break;
                 }
                 if (weight[i][0] == 2) {
                     // calc or recalculate cost to make line
                     int di = i >= 3 ? weight[i][1] : i;
                     int dj = i >= 3 ? i - 3 : weight[i][1];
-                    if (path == null) path = new Path(field, di, dj, groups[6 - weight[i][2] - 1]);
-                    else {
-                        Path diff = new Path(field, di, dj, groups[6 - weight[i][2] - 1]);
-                        if (diff.count() < path.count()) path = diff;
+                    int[] sij = groups[6 - weight[i][2] - 1];
+                    if (vehicleTypeEnd == null) {
+                        vehicleTypeEnd = bfs(field, sij[0], sij[1], di, dj);
+                        group = 6 - weight[i][2];
                     }
-                    line = true;
+                    else {
+                        GraphVertex diff = bfs(field, sij[0], sij[1], di, dj);
+                        if (count(diff) < count(vehicleTypeEnd)) {
+                            vehicleTypeEnd = diff;
+                            group = 6 - weight[i][2];
+                        }
+                    }
+                    lineFound = true;
                 }
             }
-
-            end = bfs(field, ij[0], ij[1], di, dj);
-            if (MyStrategy.DEBUG) System.out.println(OrderGraph.toString(end));
+            if (!lineFound) {
+                if (field[0][0] != 0) ends.put(field[0][0], new GraphVertex(1,0, new GraphVertex(0,0, null)));
+                if (field[2][2] != 0) ends.put(field[2][2], new GraphVertex(1,2, new GraphVertex(2,2, null)));
+                if (field[2][0] != 0) ends.put(field[2][0], new GraphVertex(1,0, new GraphVertex(2,0, null)));
+                if (field[0][2] != 0) ends.put(field[0][2], new GraphVertex(1,2, new GraphVertex(0,2, null)));
+            } else {
+                ends.put(group, vehicleTypeEnd);
+            }
+            if (MyStrategy.DEBUG) for (GraphVertex graphVertex : ends.values()) System.out.println(OrderGraph.toString(graphVertex));
             if (MyStrategy.DEBUG) for (int i = 0; i < 3; i++) { System.out.println(Arrays.toString(field[i]));}
         }
 
-        int count() {
+        private int count(GraphVertex end) {
             int steps = 0;
             if (end == null) return Integer.MAX_VALUE;
             for (GraphVertex p = end; p != null; p = p.prev) steps++;
@@ -151,31 +151,5 @@ public class OrderGraph {
         StringBuilder sb = new StringBuilder();
         for (GraphVertex p = graphVertex; p != null; p = p.prev) sb.append(p.toString());
         return sb.toString();
-    }
-
-    public static void main(String[] args) {
-        Random random = new Random();
-        int[][] field = new int[3][3];
-        int[][] groups = new int[3][2];
-        int gn = 1;
-        while (gn < 4) {
-            int ij = random.nextInt(9);
-            if (field[ij/3][ij % 3] == 0) field[ij/3][ij % 3] = gn++;
-        }
-
-        boolean line = false;
-        Path path = null;
-        for (int i = 0; i < field.length; i++) {
-            System.out.println(Arrays.toString(field[i]));
-        }
-
-        if (!line) {
-            System.out.println("no line");
-        }
-        if (path != null) System.out.println(OrderGraph.toString(path.end));
-        System.out.println();
-        for (int i = 0; i < weight.length; i++) {
-            System.out.println(Arrays.toString(weight[i]));
-        }
     }
 }
