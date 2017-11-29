@@ -36,25 +36,32 @@ public class OrderGraph {
 
     public static void setupGroupingMoves(Rectangle[] rectangles, World world) {
         Path path = new Path(rectangles);
-        Map<Integer, Rectangle> gr = new HashMap<>();
+        Map<Integer, Rectangle> idRectangle = new HashMap<>();
         for (int i = 0; i < rectangles.length; i++) {
-            gr.put(rectangles[i].g, rectangles[i]);
+            idRectangle.put(rectangles[i].g, rectangles[i]);
         }
-        double side = max(Rectangle.ORDER.linew(), Rectangle.ORDER.lineh());
+
+        if (path.ends.size() == 0) return;
         for (Map.Entry<Integer, GraphVertex> e : path.ends.entrySet()) {
-            Deque<MoveBuilder> commands = gr.get(e.getKey()).commands;
+            Deque<MoveBuilder> commands = idRectangle.get(e.getKey()).commands;
             for (GraphVertex p = e.getValue(); p != null && p.prev != null; p = p.prev) {
-                Rectangle dst = Rectangle.ORDER.square(p.i, p.j, 3, side);
-                commands.add(MoveBuilder.c(ActionType.MOVE).dfCToXY(Rectangle.ORDER.square(p.prev.i, p.prev.j, 3, side), dst.cX(), dst.cY()));
+                P2D dst = Rectangle.ORDER.square(p.i, p.j);
+                P2D src = Rectangle.ORDER.square(p.prev.i, p.prev.j);
+                commands.add(MoveBuilder.c(ActionType.MOVE).dfCToXY(src, dst.x, dst.y));
+                commands.add(MoveBuilder.c(ActionType.CLEAR_AND_SELECT).vehicleType(idRectangle.get(e.getKey()).vt).setRect(new Rectangle(world)));
             }
-            commands.add(MoveBuilder.c(ActionType.CLEAR_AND_SELECT).vehicleType(gr.get(e.getKey()).vt).setRect(new Rectangle(world)));
         }
     }
 
     static class Path {
         Map<Integer, GraphVertex> ends = new HashMap<>();
+        private Map<Integer, Rectangle> idRectangle = new HashMap<>();
 
         public Path(Rectangle[] rectangles) {
+            for (int i = 0; i < rectangles.length; i++) {
+                idRectangle.put(rectangles[i].g, rectangles[i]);
+            }
+
             Rectangle order = Rectangle.ORDER;
             int[][] field = new int[3][3];
             double side = max(order.linew(), order.lineh());
@@ -102,7 +109,8 @@ public class OrderGraph {
                     }
                     else {
                         GraphVertex diff = bfs(field, sij[0], sij[1], di, dj);
-                        if (count(diff) < count(vehicleTypeEnd)) {
+                        double factor = idRectangle.get(group).vt == VehicleType.TANK ? 2 : 1;
+                        if (count(diff) < factor * count(vehicleTypeEnd)) {
                             vehicleTypeEnd = diff;
                             group = 6 - weight[i][2];
                         }
@@ -115,8 +123,10 @@ public class OrderGraph {
                 if (field[2][2] != 0) ends.put(field[2][2], new GraphVertex(1,2, new GraphVertex(2,2, null)));
                 if (field[2][0] != 0) ends.put(field[2][0], new GraphVertex(1,0, new GraphVertex(2,0, null)));
                 if (field[0][2] != 0) ends.put(field[0][2], new GraphVertex(1,2, new GraphVertex(0,2, null)));
+                if (field[0][1] != 0) ends.put(field[2][0], new GraphVertex(1,1, new GraphVertex(0,1, null)));
+                if (field[2][1] != 0) ends.put(field[0][2], new GraphVertex(1,1, new GraphVertex(2,1, null)));
             } else {
-                ends.put(group, vehicleTypeEnd);
+                if (vehicleTypeEnd != null) ends.put(group, vehicleTypeEnd);
             }
             if (MyStrategy.DEBUG) for (GraphVertex graphVertex : ends.values()) System.out.println(OrderGraph.toString(graphVertex));
             if (MyStrategy.DEBUG) for (int i = 0; i < 3; i++) { System.out.println(Arrays.toString(field[i]));}

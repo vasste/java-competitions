@@ -10,7 +10,7 @@ import static java.lang.StrictMath.hypot;
 import static java.lang.StrictMath.round;
 
 public class Rectangle implements Comparable<Rectangle> {
-    public static Rectangle ORDER = new Rectangle(14,14,220,220);
+    public static Rectangle ORDER = new Rectangle(16,16,222,222);
     public double l = Double.NaN,t = Double.NaN,b = Double.NaN,r = Double.NaN;
     public VehicleType vt;
     public int g;
@@ -52,9 +52,8 @@ public class Rectangle implements Comparable<Rectangle> {
     double lineh() { return b - t;}
     Rectangle scale(double factor) { return new Rectangle(l, t, t + (b-t)*factor, l + (r-l)*factor); }
     boolean include(double x, double y) { return x >= l && x <= r && y >= t && y <= b; }
-    Rectangle square(int i, int j, int n, double side) { return new Rectangle(l + j*side/n, t + i*side/n,
-            t + (i+1)*side/n, l + (j+1)*side/n); }
-            
+    P2D square(int i, int j) { return new P2D(l + j*58 + j*16 + 58/2, t + i*58 + i*16 + 58/2); }
+
     public boolean intersects(Rectangle rectangle) {
         int tw = (int)round(r - l);
         int th = (int)round(b - t);

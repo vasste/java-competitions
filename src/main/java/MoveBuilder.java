@@ -38,14 +38,14 @@ public class MoveBuilder {
     MoveBuilder bottom(double bottom) { this.bottom = bottom; return this; }
     MoveBuilder x(double x) { this.x = x; return this; }
     MoveBuilder y(double y) { this.y = y; return this; }
+    MoveBuilder dfCToXY(P2D current, double x, double y) {
+        this.y = y - current.y;
+        this.x = x - current.x;
+        return this;
+    }
     MoveBuilder dfCToXY(Rectangle current, double x, double y) {
         this.y = y - current.cY();
         this.x = x - current.cX();
-        return this;
-    }
-    MoveBuilder dfLtToXY(Rectangle current, double x, double y) {
-        this.y = y - current.t;
-        this.x = x - current.l;
         return this;
     }
     MoveBuilder angle(double angle) { this.angle = angle; return this; }
