@@ -50,6 +50,12 @@ public class OrderGraph {
                 commands.add(MoveBuilder.c(ActionType.MOVE).dfCToXY(src, dst.x, dst.y));
                 commands.add(MoveBuilder.c(ActionType.CLEAR_AND_SELECT).vehicleType(idRectangle.get(e.getKey()).vt).setRect(new Rectangle(world)));
             }
+            if (MyStrategy.DEBUG) {
+                for (MoveBuilder command : commands) {
+                    System.out.println(command);
+                }
+            }
+            System.out.println();
         }
     }
 
@@ -123,8 +129,8 @@ public class OrderGraph {
                 if (field[2][2] != 0) ends.put(field[2][2], new GraphVertex(1,2, new GraphVertex(2,2, null)));
                 if (field[2][0] != 0) ends.put(field[2][0], new GraphVertex(1,0, new GraphVertex(2,0, null)));
                 if (field[0][2] != 0) ends.put(field[0][2], new GraphVertex(1,2, new GraphVertex(0,2, null)));
-                if (field[0][1] != 0) ends.put(field[2][0], new GraphVertex(1,1, new GraphVertex(0,1, null)));
-                if (field[2][1] != 0) ends.put(field[0][2], new GraphVertex(1,1, new GraphVertex(2,1, null)));
+                if (field[0][1] != 0) ends.put(field[0][1], new GraphVertex(1,1, new GraphVertex(0,1, null)));
+                if (field[2][1] != 0) ends.put(field[2][1], new GraphVertex(1,1, new GraphVertex(2,1, null)));
             } else {
                 if (vehicleTypeEnd != null) ends.put(group, vehicleTypeEnd);
             }

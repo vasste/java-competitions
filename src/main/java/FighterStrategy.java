@@ -17,11 +17,15 @@ public class FighterStrategy implements Strategy {
     Player me;
     Queue<MoveBuilder> moves = new LinkedList<>();
     Long gunnerId;
+    WeatherType[][] weatherTypes;
+    TerrainType[][] terrainTypes;
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
         this.me = me;
         Player enemy = Arrays.stream(world.getPlayers()).filter(p -> p.getId() != me.getId()).findFirst().orElse(me);
+        terrainTypes = world.getTerrainByCellXY();
+        weatherTypes = world.getWeatherByCellXY();
 
         for (Vehicle vehicle : world.getNewVehicles()) {
             vehiclesById.put(vehicle.getId(), vehicle);
@@ -59,28 +63,29 @@ public class FighterStrategy implements Strategy {
                 if (world.getTickIndex() - lastTick > 60) {
                     moves.add(new MoveBuilder(ROTATE).angle(PI));
                 } else {
-                    if (rectangle.cX() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getX() > 0.5 ||
-                        rectangle.cY() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getY() > 0.5) {
+                    double closeFactor = 0.6;
+                    if (rectangle.cX() - closeFactor*gunnerFighter.getVisionRange() - gunnerFighter.getX() > closeFactor ||
+                        rectangle.cY() - closeFactor*gunnerFighter.getVisionRange() - gunnerFighter.getY() > closeFactor) {
                         moves.add(new MoveBuilder(MOVE)
-                                .x(rectangle.cX() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getX())
-                                .y(rectangle.cY() - 0.7*gunnerFighter.getVisionRange() - gunnerFighter.getY()));
+                                .x(rectangle.cX() - closeFactor*gunnerFighter.getVisionRange() - gunnerFighter.getX())
+                                .y(rectangle.cY() - closeFactor*gunnerFighter.getVisionRange() - gunnerFighter.getY()));
                     } else {
                         if (eV().noneMatch(v -> v.getDistanceTo(gunnerFighter) < gunnerFighter.getVisionRange() + 10)) {
                             moves.add(new MoveBuilder(MOVE)
-                                    .x(rectangle.cX() - 0.7*gunnerFighter.getX())
-                                    .y(rectangle.cY() - 0.7*gunnerFighter.getY()));
+                                    .x(rectangle.cX() - closeFactor*gunnerFighter.getX())
+                                    .y(rectangle.cY() - closeFactor*gunnerFighter.getY()));
                         } else {
                             if (me.getRemainingNuclearStrikeCooldownTicks() == 0 && me.getNextNuclearStrikeTickIndex() == -1) {
                                 Vehicle eVns = null;
-                                P2D pgF = new P2D(gunnerFighter);
+                                P2D pgF = new P2D(OfVG(eV()).c());
                                 for (Vehicle eV : (Iterable<Vehicle>) eV()::iterator) {
                                     if (see(gunnerFighter, eV, game, world)) {
                                         if (eVns == null) eVns = eV;
-                                        else eVns = P2D.futherTo(eVns, eV, pgF);
+                                        else eVns = P2D.closedTo(eVns, eV, pgF);
                                     }
                                 }
                                 if (eVns != null)
-                                    moves.add(new MoveBuilder(ActionType.TACTICAL_NUCLEAR_STRIKE).vehicleId(gunnerId).x(eVns.getX()).y(eVns.getY()));
+                                    moves.add(new MoveBuilder(ActionType.TACTICAL_NUCLEAR_STRIKE).vehicleId(gunnerId).x(eVns.getX() - 10).y(eVns.getY() - 10));
                             }
                             moves.add(new MoveBuilder(MOVE).x(0).y(0));
                         }
@@ -92,22 +97,8 @@ public class FighterStrategy implements Strategy {
         }
     }
 
-    static double wtVF(Game game, WeatherType weatherType) {
-        switch (weatherType) {
-            case CLEAR:
-                return game.getClearWeatherVisionFactor();
-            case CLOUD:
-                return game.getCloudWeatherVisionFactor();
-            case RAIN:
-                return game.getRainWeatherVisionFactor();
-        }
-        return 1;
-    }
-
-
-    static boolean see(Vehicle v, Vehicle u, Game game, World world) {
-        int[] wij = new P2D(v).inWorld(world);
-        return u.getDistanceTo(v) < v.getVisionRange() * wtVF(game, world.getWeatherByCellXY()[wij[0]][wij[1]]);
+    boolean see(Vehicle v, Vehicle u, Game game, World world) {
+        return new VehicleTick(v, 0).see(new VehicleTick(u, 0), game, world, weatherTypes, terrainTypes);
     }
 
     Stream<Vehicle> eV() { return vehiclesById.values().stream().filter(v -> v.getPlayerId() != me.getId()); }

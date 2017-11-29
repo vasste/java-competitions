@@ -89,22 +89,22 @@ public class MoveBuilder {
 
     @Override
     public String toString() {
-        return "MoveBuilder{" +
-                "action=" + action +
-                ", group=" + group +
-                ", left=" + left +
-                ", top=" + top +
-                ", right=" + right +
-                ", bottom=" + bottom +
+        return "MB{" +
+                "a=" + action +
+                ", g=" + group +
+                ", l=" + left +
+                ", t=" + top +
+                ", r=" + right +
+                ", b=" + bottom +
                 ", x=" + x +
                 ", y=" + y +
-                ", angle=" + angle +
-                ", factor=" + factor +
-                ", maxSpeed=" + maxSpeed +
-                ", maxAngularSpeed=" + maxAngularSpeed +
-                ", vehicleType=" + vehicleType +
-                ", facilityId=" + facilityId +
-                ", vehicleId=" + vehicleId +
+                ", a=" + angle +
+                ", f=" + factor +
+                ", mS=" + maxSpeed +
+                ", mAS=" + maxAngularSpeed +
+                ", vt=" + vehicleType +
+                ", fId=" + facilityId +
+                ", vId=" + vehicleId +
                 '}';
     }
 }

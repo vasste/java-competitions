@@ -44,6 +44,7 @@ public class Line {
     static double angle(Line a, Line b) {
         return acos(a.a*b.a + a.b*b.b);
     }
+
     static boolean intersect(P2D a, P2D b, P2D c, P2D d, P2D left, P2D right) {
         if (!intersect_1d (a.x, b.x, c.x, d.x) || ! intersect_1d (a.y, b.y, c.y, d.y)) return false;
         Line m = new Line(a, b);

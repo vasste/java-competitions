@@ -15,6 +15,7 @@ public class Rectangle implements Comparable<Rectangle> {
     public VehicleType vt;
     public int g;
     public Deque<MoveBuilder> commands;
+    double speed = Double.MAX_VALUE;
 
     Rectangle() {}
     Rectangle(VehicleType vt) { this.vt = vt; }
@@ -39,6 +40,7 @@ public class Rectangle implements Comparable<Rectangle> {
         this.r = max(isNaN(this.r) ? 0 : this.r, isNaN(rectangle.r) ? 0: rectangle.r);
         t = min(isNaN(t) ? Double.MAX_VALUE : t, isNaN(rectangle.t) ? Double.MAX_VALUE : rectangle.t);
         b = max(isNaN(b) ? 0 : b, isNaN(rectangle.b) ? 0 : rectangle.b);
+        speed = Math.min(speed, rectangle.speed);
         return this;
     }
 
@@ -53,6 +55,11 @@ public class Rectangle implements Comparable<Rectangle> {
     Rectangle scale(double factor) { return new Rectangle(l, t, t + (b-t)*factor, l + (r-l)*factor); }
     boolean include(double x, double y) { return x >= l && x <= r && y >= t && y <= b; }
     P2D square(int i, int j) { return new P2D(l + j*58 + j*16 + 58/2, t + i*58 + i*16 + 58/2); }
+    Line sidew() { return linew() > lineh() ? new Line(new P2D(l, t), new P2D(r, t)) : new Line(new P2D(l, t), new P2D(l, b)); }
+    Line sideh() { return linew() > lineh() ? new Line(new P2D(l, t), new P2D(l, b)) : new Line(new P2D(l, t), new P2D(r, t)); }
+    static Rectangle nsRectangle(P2D nsp) {
+        return new Rectangle(Math.max(0, nsp.x - 90/2), Math.max(0, nsp.y - 90/2), Math.max(0, nsp.y + 90/2), Math.max(0, nsp.x + 90/2));
+    }
 
     public boolean intersects(Rectangle rectangle) {
         int tw = (int)round(r - l);
