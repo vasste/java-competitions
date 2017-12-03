@@ -75,12 +75,13 @@ public class StrategyLogic {
     }
 
     void zipGroup(int id, double speed, VehicleType... types) {
-        Rectangle r = new Rectangle();
+        Rectangle.Builder rb = new Rectangle.Builder();
         Set<Long> coordinates = mVg(id).map(v -> {
-            r.update(v);
+            rb.update(v);
             if (gatheredHorizontally.get(id)) return round(v.x());
             else return round(v.y());
         }).collect(Collectors.toSet());
+        Rectangle r = rb.build();
         List<Long> sorted = new ArrayList<>(coordinates);
         sorted.sort(Long::compareTo);
         for (int i = 1; i < sorted.size(); i++) {
@@ -105,14 +106,15 @@ public class StrategyLogic {
     }
 
     void unzipGroup(int id, double speed, VehicleType... types) {
-        Rectangle r = new Rectangle();
+        Rectangle.Builder rb = new Rectangle.Builder();
         Set<Long> coordinates = mVg(id).map(v -> {
-            r.update(v);
+            rb.update(v);
             if (gatheredHorizontally.get(id)) return round(v.y());
             else return round(v.x());
         }).collect(Collectors.toSet());
         List<Long> sorted = new ArrayList<>(coordinates);
         sorted.sort(Long::compareTo);
+        Rectangle r = rb.build();
         for (int i = sorted.size() - 1; i >= 1; i--) {
             if (gatheredHorizontally.get(id)) {
                 double ry = sorted.get(i);
@@ -139,9 +141,9 @@ public class StrategyLogic {
         for (Vehicle vehicle : world.getNewVehicles()) {
             vehicles.computeIfAbsent(vehicle.getType(), t -> new Accumulator()).inc();
             if (vehicle.getPlayerId() == me.getId()) {
-                mVById.put(vehicle.getId(), new VehicleTick(vehicle, world.getTickIndex()));
+                mVById.put(vehicle.getId(), new VehicleTick(vehicle, world.getTickIndex(), world));
             } else {
-                eVById.put(vehicle.getId(), new VehicleTick(vehicle, world.getTickIndex()));
+                eVById.put(vehicle.getId(), new VehicleTick(vehicle, world.getTickIndex(), world));
             }
         }
 
@@ -152,11 +154,11 @@ public class StrategyLogic {
                 eVById.remove(vu.getId());
             } else {
                 VehicleTick oV = mVById.get(vu.getId());
-                VehicleTick nV = mVById.computeIfPresent(vu.getId(), (key, vehicle) -> new VehicleTick(vehicle, vu, world.getTickIndex()));
+                VehicleTick nV = mVById.computeIfPresent(vu.getId(), (key, vehicle) -> new VehicleTick(vehicle, vu, world.getTickIndex(), world));
                 if (oV != null && (Double.compare(oV.y(), nV.y()) != 0 || Double.compare(oV.x(), nV.x()) != 0)) {
                     vehicleUpdates.computeIfAbsent(oV.type(), t -> new Accumulator(0)).inc();
                 }
-                eVById.computeIfPresent(vu.getId(), (key, vehicle) -> new VehicleTick(vehicle, vu, world.getTickIndex()));
+                eVById.computeIfPresent(vu.getId(), (key, vehicle) -> new VehicleTick(vehicle, vu, world.getTickIndex(), world));
             }
         }
         return vehicleUpdates;
@@ -168,10 +170,6 @@ public class StrategyLogic {
         if (srs.dfct(drs) > U.EPS) {
             makeGroupMove(arial, srs, drs.cX(), drs.cY(), 0, true);
         }
-    }
-
-    Rectangle cFlp(VehicleTick lc) {
-        return new Rectangle(lc.x() - 2.0, lc.y() - 2.0, lc.y() + 84.0, lc.x() + 84.0);
     }
 
     boolean gatherAG(double scale, MyStrategy.GroupGameState[] ggs, int i, Rectangle... rectangles) {
@@ -205,40 +203,57 @@ public class StrategyLogic {
         return gd;
     }
 
-    private VehicleTick cEP(boolean arial, int... groups) {
+    VehicleTick cEP(boolean arial, int... groups) {
         P2D center = OfVG(groups).c();
         VehicleTick ctlev = null;
         for (VehicleTick v : (Iterable<VehicleTick>) eV()::iterator) {
             if (arial && !v.v.isAerial()) continue;
             if (ctlev == null) ctlev = v;
-            else ctlev = P2D.closedTo(ctlev,v, center);
+            else ctlev = P2D.closedTo(ctlev, v, center);
         }
         return ctlev;
     }
 
+    long myVehicleReadyAttack(int... gid) {
+        int attack = 0;
+        Rectangle[] aR = sOfVG(9, gid);
+        for (VehicleTick m : (Iterable<VehicleTick>) eV()::iterator) {
+            for (Rectangle anAR : aR) {
+                if (anAR.include(m.x(), m.y())) attack++;
+            }
+        }
+        return attack;
+    }
+
     boolean setupNuclearStrike(int id) {
         if (me.getNextNuclearStrikeTickIndex() > 0 || me.getRemainingNuclearStrikeCooldownTicks() > 0) return false;
-        P2D eRc = OfV(eV()).c();
-        VehicleTick cff = null;
+        Rectangle.Builder vRB = new Rectangle.Builder();
         for (VehicleTick fv : (Iterable<VehicleTick>) mVt(FIGHTER, HELICOPTER)::iterator) {
-            if (cff == null) cff = fv;
-            else cff = P2D.closedTo(fv, cff, eRc);
+            vRB.combine(fv.see(game, world, weatherTypes, terrainTypes));
         }
+
+        Rectangle vR = vRB.build();
         VehicleTick eVns = null;
-        if (cff != null) {
-            P2D pcff = new P2D(cff);
-            for (VehicleTick eV : (Iterable<VehicleTick>) eV()::iterator) {
-                if (cff.see(eV, game, world, weatherTypes, terrainTypes)) {
-                    if (eVns == null) eVns = eV;
-                    else eVns = P2D.futherTo(eVns, eV, pcff);
+        VehicleTick cff = null;
+        for (VehicleTick eV : (Iterable<VehicleTick>) eV().filter(v -> vR.include(v.x(), v.y()))::iterator) {
+            for (VehicleTick mV : (Iterable<VehicleTick>) mVt(FIGHTER, HELICOPTER)::iterator) {
+                if (mV.see(eV, game, weatherTypes, terrainTypes)) {
+                    if (eVns == null) {
+                        eVns = eV;
+                        cff = mV;
+                    }
+                    if (eVns.compareTo(eV) < 0) {
+                        eVns = eV;
+                        cff = mV;
+                    }
                 }
             }
-            if (eVns != null) {
-                Rectangle rectangle = sOfVG(id)[0];
-                makeGroupMove(id, rectangle, rectangle.cX(), rectangle.cY(), 0, true);
-                moves.add(new MoveBuilder(TACTICAL_NUCLEAR_STRIKE).vehicleId(cff.id()).x(eVns.x()).y(eVns.y()));
-                return true;
-            }
+        }
+        if (eVns != null) {
+            Rectangle rectangle = sOfVG(id)[0];
+            makeGroupMove(id, rectangle, rectangle.cX(), rectangle.cY(), 0, true);
+            moves.add(new MoveBuilder(TACTICAL_NUCLEAR_STRIKE).vehicleId(cff.id()).x(eVns.x()).y(eVns.y()));
+            return true;
         }
         return false;
     }
@@ -250,7 +265,8 @@ public class StrategyLogic {
         Rectangle rectangle = OfV(gV(id));
         if (rectangle.include(x, y)) {
             vGd.remove(id);
-            if (rectangle.square() > 15_000) zipGroup(id, 0/*, rectangle.cX(), rectangle.cY()*/);
+            if (rectangle.square() > 25_000)
+                scaleGroup(0.8, rectangle.cX(), rectangle.cX(), rectangle.speed, id);
             else {
                 P2D center = new P2D(x, y);
                 VehicleTick ctlev = null;
@@ -258,11 +274,11 @@ public class StrategyLogic {
                     if (ctlev == null) ctlev = v;
                     else ctlev = P2D.closedTo(ctlev, v, center);
                 }
-                if (ctlev == null || U.eD(x, ctlev.x()) && U.eD(y, ctlev.y())) rotateGroup(id, PI / 4, rectangle.cX(), rectangle.cY(), 0);
+                if (ctlev == null || U.eD(x, ctlev.x()) && U.eD(y, ctlev.y())) rotateGroup(id, PI / 4, rectangle.cX(), rectangle.cY(), ms);
                 else {
                     moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
                     moves.add(MoveBuilder.c(MOVE).x(x - ctlev.x()).y(y - ctlev.y()).maxSpeed(ms));
-                    vGd.put(id, new P2D(x, y, world.getTickIndex()));
+                    vGd.put(id, new P2D(x, y, world.getTickIndex(), ms));
                 }
             }
             return false;
@@ -271,7 +287,7 @@ public class StrategyLogic {
             if ((rectangle.r - rectangle.l)/2 + x >= world.getWidth()) x = world.getWidth() - (rectangle.r - rectangle.l)/2;
             if ((rectangle.b - rectangle.t)/2 + y >= world.getHeight()) y = world.getHeight() - (rectangle.b - rectangle.t)/2;
             moves.add(MoveBuilder.c(MOVE).dfCToXY(rectangle, x, y).maxSpeed(ms));
-            vGd.put(id, new P2D(x, y, world.getTickIndex()));
+            vGd.put(id, new P2D(x, y, world.getTickIndex(), ms));
             return true;
         }
     }
@@ -307,7 +323,7 @@ public class StrategyLogic {
 
     void scaleGroup(double scale, double x, double y, double speed, int id) {
         moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
-        moves.add(MoveBuilder.c(SCALE).factor(scale).x(nuclearStrikePoint.x).y(nuclearStrikePoint.y).maxSpeed(speed));
+        moves.add(MoveBuilder.c(SCALE).factor(scale).x(x).y(y).maxSpeed(speed));
     }
 
     void rotateGroup(int id, double angle, double x, double y, double speed) {
@@ -337,7 +353,7 @@ public class StrategyLogic {
     Stream<VehicleTick> mV() { return mVById.values().stream(); }
     Stream<VehicleTick> mVt(VehicleType... vts) { return mV().filter(v -> Arrays.stream(vts).anyMatch(vt -> v.type() == vt)); }
     Stream<VehicleTick> mVg(int... ids) { return mV().filter(v -> v.inGs(ids)); }
-    Rectangle OfV(Stream<VehicleTick> vhs) { return vhs.reduce(new Rectangle(), Rectangle::update, Rectangle::combine); }
+    Rectangle OfV(Stream<VehicleTick> vhs) { return vhs.reduce(new Rectangle.Builder(), Rectangle.Builder::update, Rectangle.Builder::combine).build(); }
     Stream<VehicleTick> gV(int id) { return mV().filter(vt -> vt.inG(id)); }
     Stream<VehicleTick> eV() { return eVById.values().stream(); }
 
@@ -346,23 +362,30 @@ public class StrategyLogic {
         Arrays.fill(speeds, Double.MAX_VALUE);
         return mV().reduce(speeds, (spds, v) -> {
             for (int i = 0; i < spds.length; i++) {
-                if (v.inG(ids[i])) spds[i] = Math.min(spds[i], vehicleSpeed(game, v, world, weatherTypes, terrainTypes));
+                if (v.inG(ids[i])) spds[i] = Math.min(spds[i], vehicleSpeed(game, v, weatherTypes, terrainTypes));
             }
             return spds;
         }, (a, b) -> { for (int i = 0; i < a.length; i++) a[i] = Math.min(a[i], b[i]); return a; });
     }
 
     Rectangle[] sOfVG(int... ids) {
-        Rectangle[] initial = new Rectangle[ids.length];
-        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle();initial[i].g = ids[i]; }
-        return mV().reduce(initial, (rects, v) -> {
+        return sOfVG(2, ids);
+    }
+
+    Rectangle[] sOfVG(double range, int... ids) {
+        Rectangle.Builder[] initial = new Rectangle.Builder[ids.length];
+        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle.Builder();initial[i].g = ids[i]; }
+        initial = mV().reduce(initial, (rects, v) -> {
             for (int i = 0; i < ids.length; i++)
                 if (v.inG(ids[i])) {
-                    rects[i].update(v);
-                    rects[i].speed = Math.min(rects[i].speed, vehicleSpeed(game, v, world, weatherTypes, terrainTypes));
+                    rects[i].update(v, range);
+                    rects[i].speed = Math.min(rects[i].speed, vehicleSpeed(game, v, weatherTypes, terrainTypes));
                 }
             return rects;
         }, (rl, rr) -> { for (int i = 0; i < rl.length; i++) rl[i] = rl[i].combine(rr[i]); return rl; });
+        Rectangle[] rectangles = new Rectangle[initial.length];
+        for (int i = 0; i < rectangles.length; i++) rectangles[i] = initial[i].build();
+        return rectangles;
     }
 
     Map<VehicleType, Rectangle> mOfVT(VehicleType... types) {
@@ -370,16 +393,19 @@ public class StrategyLogic {
     }
 
     Rectangle[] sOfVT(Stream<VehicleTick> vehicle, VehicleType... types) {
-        Rectangle[] initial = new Rectangle[types.length];
-        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle(types[i]); }
-        return vehicle.reduce(initial, (rects, v) -> {
+        Rectangle.Builder[] initial = new Rectangle.Builder[types.length];
+        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle.Builder(types[i]); }
+        initial = vehicle.reduce(initial, (rects, v) -> {
             for (int i = 0; i < types.length; i++)
                 if (v.type() == types[i]) {
                     rects[i].update(v);
-                    rects[i].speed = Math.min(rects[i].speed, vehicleSpeed(game, v, world, weatherTypes, terrainTypes));
+                    rects[i].speed = Math.min(rects[i].speed, vehicleSpeed(game, v, weatherTypes, terrainTypes));
                 }
             return rects;
         }, (rl, rr) -> { for (int i = 0; i < rl.length; i++) rl[i] = rl[i].combine(rr[i]); return rl; });
+        Rectangle[] rectangles = new Rectangle[initial.length];
+        for (int i = 0; i < rectangles.length; i++) rectangles[i] = initial[i].build();
+        return rectangles;
     }
 
     Rectangle[] sOfVT(VehicleType... types) {
@@ -387,29 +413,18 @@ public class StrategyLogic {
     }
 
     Rectangle OfVG(int... ids) {
-        return mV().reduce(new Rectangle(), (rect, v) -> {
+        return mV().reduce(new Rectangle.Builder(), (rect, v) -> {
             for (int id : ids)
                 if (v.inG(id)) {
                     rect.update(v);
-                    rect.speed = Math.min(rect.speed, vehicleSpeed(game, v, world, weatherTypes, terrainTypes));
+                    rect.speed = Math.min(rect.speed, vehicleSpeed(game, v, weatherTypes, terrainTypes));
                 }
             return rect;
-        }, Rectangle::combine);
-    }
-
-    Rectangle OfVG(VehicleType... types) {
-        return mV().reduce(new Rectangle(), (rect, v) -> {
-            for (int i = 0; i < types.length; i++)
-                if (v.type() == types[i]) {
-                    rect.update(v);
-                    rect.speed = Math.min(rect.speed, vehicleSpeed(game, v, world, weatherTypes, terrainTypes));
-                }
-            return rect;
-        }, Rectangle::combine);
+        }, Rectangle.Builder::combine).build();
     }
 
 
-    double vehicleSpeed(Game game, VehicleTick vehicle, World world, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
-        return vehicle.speed(game, world, weatherTypes, terrainTypes);
+    double vehicleSpeed(Game game, VehicleTick vehicle, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
+        return vehicle.speed(game, weatherTypes, terrainTypes);
     }
 }

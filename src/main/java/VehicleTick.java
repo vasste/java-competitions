@@ -6,16 +6,18 @@ public class VehicleTick implements Comparable<VehicleTick> {
     final Vehicle v;
     final int tI;
     final int[] gs;
+    final int[] wij;
 
-    VehicleTick(Vehicle v, int tI) {
+    VehicleTick(Vehicle v, int tI, World world) {
         this.v = v;
         this.tI = tI;
         this.gs = v.getGroups();
         Arrays.sort(this.gs);
+        wij = inWorld(world);
     }
 
-    VehicleTick(VehicleTick veEx, VehicleUpdate vu, int tI) {
-        this(new Vehicle(veEx.v, vu), tI);
+    VehicleTick(VehicleTick veEx, VehicleUpdate vu, int tI, World world) {
+        this(new Vehicle(veEx.v, vu), tI, world);
     }
 
     boolean ofVT(VehicleType type) { return v.getType() == type; }
@@ -39,31 +41,38 @@ public class VehicleTick implements Comparable<VehicleTick> {
     VehicleType type() { return v.getType(); }
     long id() { return v.getId(); }
     boolean isAerial() { return v.isAerial(); }
+    double attackRange() {
+        return isAerial() ? v.getAerialAttackRange() : v.getGroundAttackRange();
+    }
     P2D point() { return new P2D(v.getX(), v.getY()); }
     double x() {return v.getX(); }
     double y() {return v.getY(); }
     double r() {return v.getRadius(); }
 
-    double speed(Game game, World world, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
-        int[] wij = inWorld(world);
+    double speed(Game game, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
         if (isAerial()) {
-            return v.getMaxSpeed() * wSf(game, weatherTypes[wij[0]][wij[0]]);
+            return v.getMaxSpeed() * wSf(game, weatherTypes[wij[0]][wij[1]]);
         } else {
-            return v.getMaxSpeed() * tSf(game, terrainTypes[wij[0]][wij[0]]);
+            return v.getMaxSpeed() * tSf(game, terrainTypes[wij[0]][wij[1]]);
         }
     }
 
-    boolean see(VehicleTick u, Game game, World world, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
-        int[] uij = u.inWorld(world);
-        double shF = u.isAerial() ? wShf(game, weatherTypes[uij[0]][uij[1]]) : tShf(game, terrainTypes[uij[0]][uij[1]]);
-        double vF = isAerial() ? wVf(game, weatherTypes[uij[0]][uij[1]]): tVf(game, terrainTypes[uij[0]][uij[1]]);
+    Rectangle see(Game game, World world, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
+        double vF = isAerial() ? wVf(game, weatherTypes[wij[0]][wij[1]]): tVf(game, terrainTypes[wij[0]][wij[1]]);
+        double visionRange = v.getVisionRange() * vF;
+        return new Rectangle(x(), y(), world, visionRange);
+    }
+
+    boolean see(VehicleTick u, Game game, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
+        double shF = u.isAerial() ? wShf(game, weatherTypes[u.wij[0]][u.wij[1]]) : tShf(game, terrainTypes[u.wij[0]][u.wij[1]]);
+        double vF = isAerial() ? wVf(game, weatherTypes[wij[0]][wij[1]]): tVf(game, terrainTypes[wij[0]][wij[1]]);
         return P2D.distanceTo(u, this) <= v.getVisionRange() * shF * vF;
     }
 
     boolean attack(VehicleTick u) {
         if (type() == VehicleType.ARRV) return false;
-        if (type() == VehicleType.FIGHTER && u.v.isAerial()) return P2D.distanceTo(u, this) <= v.getAerialAttackRange();
         if (type() == VehicleType.FIGHTER && !u.v.isAerial()) return false;
+        if (type() == VehicleType.FIGHTER && u.v.isAerial()) return P2D.distanceTo(u, this) <= v.getAerialAttackRange();
         double duthis = P2D.distanceTo(u, this);
         return duthis <= v.getAerialAttackRange() || duthis <= v.getGroundAttackRange();
     }
@@ -77,9 +86,9 @@ public class VehicleTick implements Comparable<VehicleTick> {
         return ix;
     }
 
-    int[] inWorld(World world) {
-        return new int[]{(int) StrictMath.round(StrictMath.min(world.getWidth()/U.PALE_SIDE, x()/U.PALE_SIDE)),
-                (int) StrictMath.round(StrictMath.min(world.getHeight()/U.PALE_SIDE, y()/U.PALE_SIDE))};
+    private int[] inWorld(World world) {
+        return new int[]{(int) StrictMath.floor(StrictMath.min(world.getWidth()/U.PALE_SIDE, x()/U.PALE_SIDE)),
+                (int) StrictMath.floor(StrictMath.min(world.getHeight()/U.PALE_SIDE, y()/U.PALE_SIDE))};
     }
 
     static double tSf(Game game, TerrainType terrainType) {

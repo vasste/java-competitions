@@ -156,26 +156,32 @@ public class WorldDominationStrategy implements Strategy {
         return eV().filter(v -> v.getType() == vt);
     }
     Rectangle OfVG(Stream<Vehicle> stream) {
-        return stream.reduce(new Rectangle(), (rect, v) -> rect.combine(new Rectangle(v)), Rectangle::combine);
+        return stream.reduce(new Rectangle.Builder(), (rect, v) -> rect.combine(new Rectangle(v)), Rectangle.Builder::combine).build();
     }
     Stream<Vehicle> mV() { return mVById.values().stream().filter(v -> v.getPlayerId() == me.getId()); }
 
     Rectangle[] sOfVT(VehicleType... types) {
-        Rectangle[] initial = new Rectangle[types.length];
-        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle(); }
-        return mV().reduce(initial, (rects, v) -> {
+        Rectangle.Builder[] initial = new Rectangle.Builder[types.length];
+        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle.Builder(types[i]); }
+        initial = mV().reduce(initial, (rects, v) -> {
             for (int i = 0; i < types.length; i++) if (v.getType() == types[i]) rects[i].update(v);return rects;
         }, (rl, rr) -> { for (int i = 0; i < rl.length; i++) rl[i] = rl[i].combine(rr[i]); return rl; });
+        Rectangle[] rectangles = new Rectangle[initial.length];
+        for (int i = 0; i < rectangles.length; i++) rectangles[i] = initial[i].build();
+        return rectangles;
     }
 
     Rectangle[] sOfVG(int... ids) {
-        Rectangle[] initial = new Rectangle[ids.length];
-        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle();initial[i].g = ids[i]; }
-        return mV().reduce(initial, (rects, v) -> {
+        Rectangle.Builder[] initial = new Rectangle.Builder[ids.length];
+        for (int i = 0; i < initial.length; i++) { initial[i] = new Rectangle.Builder(ids[i]); }
+        initial = mV().reduce(initial, (rects, v) -> {
             int[] gs = v.getGroups();
             for (int i = 0; i < ids.length; i++) for (int id : gs) if (id == ids[i]) rects[i].update(v);
             return rects;
         }, (rl, rr) -> { for (int i = 0; i < rl.length; i++) rl[i] = rl[i].combine(rr[i]); return rl; });
+        Rectangle[] rectangles = new Rectangle[initial.length];
+        for (int i = 0; i < rectangles.length; i++) rectangles[i] = initial[i].build();
+        return rectangles;
     }
 
     public final static int GF = 1;

@@ -115,16 +115,13 @@ public final class MyStrategy implements Strategy {
                     if (logic.sum(vu, ARIAL_TYPES).zero()) logic.protectGround(GFH, GIAT);
                     if (logic.sum(vu, GROUND_TYPES).zero()) {
                         Rectangle[] rectangles = logic.sOfVG(GFH, GIAT);
-                        Rectangle rectangle = logic.OfV(logic.eV());
                         double[] speeds = logic.minVehicleSpeed(GFH, GIAT);
-                        double angleG = Line.angle(rectangles[0].sidew(), rectangle.sidew());
-                        double angleA = Line.angle(rectangles[1].sidew(), rectangle.sidew());
-                        if (!U.eD(0, angleA))
-                            logic.rotateGroup(GFH, angleA, rectangles[0].cX(), rectangles[0].cY(), speeds[0]);
-                        if (!U.eD(0, angleG))
-                            logic.rotateGroup(GIAT, angleG, rectangles[1].cX(), rectangles[1].cY(), speeds[1]);
+                        double angleG = rectangles[0].angle;
+                        double angleA = rectangles[1].angle;
+                        if (!U.eD(angleG, angleA))
+                            logic.rotateGroup(GFH, angleA - angleG, rectangles[0].cX(), rectangles[0].cY(), speeds[0]);
                         logic.createGroupTIAFH(GFH, GIAT, GFHTAI);
-                        gameState = GameState.TACTICAL_EXECUTION;
+                        gameState = GameState.WAIT_COMMAND_FINISH;
                     }
                     break;
                 case TACTICAL_EXECUTION:
@@ -145,21 +142,29 @@ public final class MyStrategy implements Strategy {
 //                        gameState = GameState.FHFG;
 //                    } else {
 //                        if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GG, move, enemy, GameState.BNSD)) return;
-//                        if (!makeNuclearStrike(GG)) {
-//                            VehicleTick ep = cEP(false, GG);
-//                            if (ep == null) return;
-//                            if (mV().filter(v -> v.attack(ep)).count() < 5) {
-//                                if (!makeGroupMove(GG, ep.x(), ep.y(), minGSpeed * tS(game, OfVG(GT, GA, GI), world, terrainTypes) * 0.65,
-//                                        logic.sum(vu, ARIAL_TYPES, TANK, IFV, ARRV).value)) {
-//                                    gameState = GameState.FG;
-//                                }
-//                            }
-//                        }
+//
 //                    }
                     break;
                 case TACTICAL_EXECUTION_MULTI:
-                    break;
+                    //break;
                 case TACTICAL_EXECUTION_SINGLE:
+                    if (!logic.setupNuclearStrike(GFHTAI)) {
+                        VehicleTick ep = logic.cEP(false, GFHTAI);
+                        if (ep == null) return;
+                        if (logic.myVehicleReadyAttack(GFHTAI) < 5) {
+                            Rectangle rectangle = logic.OfVG(GFHTAI);
+                            Line line = new Line(new P2D(ep.x(), ep.y()), new P2D(rectangle.cX(), rectangle.cY()));
+                            double angle = Line.angle(line, rectangle.sideW());
+                            if (Math.abs(PI/2 - angle) > 0.1) {
+                                logic.rotateGroup(GFHTAI, angle - PI/2, rectangle.cX(), rectangle.cY(), rectangle.speed);
+                                gameState = GameState.WAIT_COMMAND_FINISH;
+                            } else {
+                                if (!logic.makeTacticalGroupMove(GFHTAI, ep.x(), ep.y(), rectangle.speed, logic.sum(vu, VehicleType.values()).value)) {
+                                    gameState = GameState.WAIT_COMMAND_FINISH;
+                                }
+                            }
+                        }
+                    }
                     break;
                 case WAIT_COMMAND_FINISH:
                     if (logic.sum(vu, VehicleType.values()).zero()) gameState = GameState.TACTICAL_EXECUTION;
@@ -239,6 +244,5 @@ public final class MyStrategy implements Strategy {
             if (DEBUG) System.out.println(nextMove);
             nextMove.setMove(move);
         }
-
     }
 }

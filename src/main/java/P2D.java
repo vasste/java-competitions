@@ -11,6 +11,7 @@ public class P2D implements Comparable<P2D> {
     double y;
     long id;
     int tick;
+    double speed;
 
     static final P2D Z = new P2D(0, 0);
 
@@ -27,6 +28,13 @@ public class P2D implements Comparable<P2D> {
         this.x = x;
         this.y = y;
         this.tick = tick;
+    }
+
+    public P2D(double x, double y, int tick, double speed) {
+        this.x = x;
+        this.y = y;
+        this.tick = tick;
+        this.speed = speed;
     }
 
     P2D(P2D p) {
@@ -50,9 +58,12 @@ public class P2D implements Comparable<P2D> {
 
     @Override
     public int compareTo(P2D o) {
-        int ix = U.cD(x,o.x);
-        if (ix == 0) return U.cD(y,o.y);
-        return ix;
+        int is = U.cD(speed,o.speed);
+        if (is == 0) {
+            int ix = U.cD(x, o.x);
+            if (ix == 0) return U.cD(y, o.y);
+            return ix;
+        } else return is;
     }
 
     boolean less(P2D p) { return compareTo(p) < 0; }
@@ -78,9 +89,12 @@ public class P2D implements Comparable<P2D> {
     static boolean intersect(P2D pa1, P2D pb1, P2D[] side) { return intersect(pa1, pb1, side[0], side[1]); }
     static boolean intersect(P2D[] aside, P2D[] bside) { return intersect(aside[0], aside[1], bside[0], bside[1]); }
     static boolean intersect(Line aside, Line bside) { return intersect(aside.ps, bside.ps); }
+
     static VehicleTick closedTo(VehicleTick a, VehicleTick b, P2D center) { return distanceTo(center, a) > distanceTo(center, b) ? b : a; }
     static P2D closedTo(P2D a, P2D b, P2D center) { return distanceTo(center, a) > distanceTo(center, b) ? b : a; }
+    static Vehicle closedTo(Vehicle a, Vehicle b, P2D center) { return distanceTo(center, new P2D(a)) > distanceTo(center, new P2D(b)) ? b : a; }
+
     static Vehicle futherTo(Vehicle a, Vehicle b, P2D center) { return distanceTo(center, a) < distanceTo(center, b) ? b : a; }
     static VehicleTick futherTo(VehicleTick a, VehicleTick b, P2D center) { return distanceTo(center, a) < distanceTo(center, b) ? b : a; }
-    static Vehicle closedTo(Vehicle a, Vehicle b, P2D center) { return distanceTo(center, new P2D(a)) > distanceTo(center, new P2D(b)) ? b : a; }
+
 }

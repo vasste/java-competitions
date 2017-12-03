@@ -98,13 +98,13 @@ public class FighterStrategy implements Strategy {
     }
 
     boolean see(Vehicle v, Vehicle u, Game game, World world) {
-        return new VehicleTick(v, 0).see(new VehicleTick(u, 0), game, world, weatherTypes, terrainTypes);
+        return new VehicleTick(v, 0, world).see(new VehicleTick(u, 0, world), game, weatherTypes, terrainTypes);
     }
 
     Stream<Vehicle> eV() { return vehiclesById.values().stream().filter(v -> v.getPlayerId() != me.getId()); }
     Stream<Vehicle> eVt(VehicleType vt) { return eV().filter(v -> v.getType() == vt); }
     Rectangle OfVG(Stream<Vehicle> stream) {
-        return stream.reduce(new Rectangle(), (rect, v) -> rect.combine(new Rectangle(v)), Rectangle::combine);
+        return stream.reduce(new Rectangle.Builder(), (rect, v) -> rect.combine(new Rectangle(v)), Rectangle.Builder::combine).build();
     }
     Stream<Vehicle> mV() { return vehiclesById.values().stream().filter(v -> v.getPlayerId() == me.getId()); }
     Stream<Vehicle> mVt(VehicleType vt) { return mV().filter(v -> v.getType() == vt); }

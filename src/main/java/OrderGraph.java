@@ -70,7 +70,7 @@ public class OrderGraph {
 
             Rectangle order = Rectangle.ORDER;
             int[][] field = new int[3][3];
-            double side = max(order.linew(), order.lineh());
+            double side = order.side();
             for (int i = 0; i < field.length; i++) {
                 for (int j = 0; j < field.length; j++) {
                     for (int k = 0; k < rectangles.length; k++) {
