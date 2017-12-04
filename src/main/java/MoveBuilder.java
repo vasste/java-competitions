@@ -25,7 +25,9 @@ public class MoveBuilder {
     private long facilityId = -1L;
     private long vehicleId = -1L;
 
-    static MoveBuilder c(ActionType action) { return new MoveBuilder(action); }
+    static MoveBuilder c(ActionType action) {
+        return new MoveBuilder(action);
+    }
 
     public MoveBuilder() { }
     public MoveBuilder(ActionType action) { this.action = action; }

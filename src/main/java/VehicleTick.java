@@ -1,18 +1,20 @@
 import model.*;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class VehicleTick implements Comparable<VehicleTick> {
     final Vehicle v;
     final int tI;
-    final int[] gs;
+    final Set<Integer> gs;
     final int[] wij;
 
     VehicleTick(Vehicle v, int tI, World world) {
         this.v = v;
         this.tI = tI;
-        this.gs = v.getGroups();
-        Arrays.sort(this.gs);
+        this.gs = Arrays.stream(v.getGroups()).boxed().collect(Collectors.toSet());
         wij = inWorld(world);
     }
 
@@ -30,14 +32,12 @@ public class VehicleTick implements Comparable<VehicleTick> {
     boolean isSelected() { return v.isSelected(); }
     boolean m(Player me) { return v.getPlayerId() == me.getId(); }
     boolean e(Player me) { return v.getPlayerId() != me.getId(); }
-    boolean inG(int id) { return Arrays.binarySearch(gs, id) >= 0; }
+    boolean inG(int id) { return gs.contains(id); }
     boolean inGs(int... ids) {
-        for (int i = 0; i < ids.length; i++) {
-            if (Arrays.binarySearch(gs, ids[i]) >= 0) return true;
-        }
+        for (int id : ids) if (gs.contains(id)) return true;
         return false;
     }
-    public String toString() { return "V{" + "g" + Arrays.toString(gs) + "}"; }
+    public String toString() { return "V{" + "g" + gs + "}"; }
     VehicleType type() { return v.getType(); }
     long id() { return v.getId(); }
     boolean isAerial() { return v.isAerial(); }

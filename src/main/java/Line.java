@@ -67,7 +67,7 @@ public class Line {
                     && betw (c.x, d.x, x) && betw (c.y, d.y, y);
         }
         else
-            return U.eD(P2D.det(m.a, m.c, n.a, n.c), 0) && U.eD(P2D.det(m.b, m.c, n.b, n.c), 0)
+            return U.eD(P2D.det(m.a, m.c, n.a, n.c), 0, 0.001) && U.eD(P2D.det(m.b, m.c, n.b, n.c), 0, 0.001)
                     && intersect_1d (a.x, b.x, c.x, d.x)
                     && intersect_1d (a.y, b.y, c.y, d.y);
     }

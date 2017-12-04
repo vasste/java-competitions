@@ -21,6 +21,7 @@ public class Rectangle implements Comparable<Rectangle> {
     Deque<MoveBuilder> commands;
     double speed = Double.MAX_VALUE;
     double angle;
+    P2D nsp;
 
     Rectangle() {}
     Rectangle(World world) { this(0, 0, world.getHeight(), world.getWidth()); }
@@ -53,7 +54,7 @@ public class Rectangle implements Comparable<Rectangle> {
     Line sideW() {
         if (P2D.distanceTo(new P2D(bx, by),new P2D(ax, ay)) > P2D.distanceTo(new P2D(bx, by),new P2D(cx, cy)))
             return new Line(new P2D(bx, by),new P2D(ax, ay));
-        else return  new Line(new P2D(bx, by),new P2D(cx, cy));
+        else return new Line(new P2D(bx, by),new P2D(cx, cy));
     }
     P2D[] points() { return new P2D[]{new P2D(ax, ay), new P2D(bx, by), new P2D(cx, cy), new P2D(dx, dy)}; }
     Line[] edges() {

@@ -64,8 +64,8 @@ public class WorldDominationStrategy implements Strategy {
                     finished++;
                 } else if (finished == 1) {
                     Rectangle[] rectangles = sOfVG(GF, GH, GH);
-                    gatherAG(5, ggs, 0, MyStrategy.GroupGameState.INX, rectangles);
-                    if (ggs[0] == MyStrategy.GroupGameState.F) finished++;
+                    gatherAG(5, ggs, 0, MyStrategy.GroupOrderState.INX, rectangles);
+                    if (ggs[0] == MyStrategy.GroupOrderState.F) finished++;
                 } else if (finished == 2) {
                     moves.add(MoveBuilder.c(CLEAR_AND_SELECT).vehicleType(VehicleType.FIGHTER).setRect(new Rectangle(world)));
                     moves.add(MoveBuilder.c(ADD_TO_SELECTION).vehicleType(VehicleType.HELICOPTER).setRect(new Rectangle(world)));
@@ -101,38 +101,38 @@ public class WorldDominationStrategy implements Strategy {
         }
     }
 
-    private boolean gatherAG(double scale, MyStrategy.GroupGameState[] ggs, int i, MyStrategy.GroupGameState bne, Rectangle... rectangles) {
+    private boolean gatherAG(double scale, MyStrategy.GroupOrderState[] ggs, int i, MyStrategy.GroupOrderState bne, Rectangle... rectangles) {
         Rectangle rectangleA = rectangles[0]; Rectangle rectangleB = rectangles[1];
-        boolean gd = ggs[i] == MyStrategy.GroupGameState.F || rectangles[0].dfct(rectangles[1]) <= scale;
+        boolean gd = ggs[i] == MyStrategy.GroupOrderState.F || rectangles[0].dfct(rectangles[1]) <= scale;
         switch (ggs[i]) {
             case I:
                 if (rectangleA.cX() != rectangleB.cX() && rectangleA.cY() != rectangleB.cY()) ggs[i] = bne;
-                else if (rectangleA.cX() != rectangleB.cX()) ggs[i] = MyStrategy.GroupGameState.INY;
-                else if (rectangleA.cY() != rectangleB.cY()) ggs[i] = MyStrategy.GroupGameState.INX;
+                else if (rectangleA.cX() != rectangleB.cX()) ggs[i] = MyStrategy.GroupOrderState.INY;
+                else if (rectangleA.cY() != rectangleB.cY()) ggs[i] = MyStrategy.GroupOrderState.INX;
                 break;
             case INX:
                 if (rectangles[2].l > rectangleB.l) scale *= -1;
-                if (U.eD(rectangleA.cX(), rectangleB.cX() + scale)) ggs[i] = MyStrategy.GroupGameState.NY;
+                if (U.eD(rectangleA.cX(), rectangleB.cX() + scale)) ggs[i] = MyStrategy.GroupOrderState.NY;
                 else mkGM(rectangleA.g, rectangleA, rectangleB.cX() + scale, rectangleA.cY());
                 break;
             case INY:
                 if (rectangles[2].t > rectangleB.t) scale *= -1;
-                if (U.eD(rectangleA.cY(), rectangleB.cY() + scale)) ggs[i] = MyStrategy.GroupGameState.NX;
+                if (U.eD(rectangleA.cY(), rectangleB.cY() + scale)) ggs[i] = MyStrategy.GroupOrderState.NX;
                 else mkGM(rectangleA.g, rectangleA, rectangleA.cX(), rectangleB.cY() + scale);
                 break;
             case NX:
-                if (U.eD(rectangleA.cX(), rectangleB.cX())) ggs[i] = MyStrategy.GroupGameState.F;
+                if (U.eD(rectangleA.cX(), rectangleB.cX())) ggs[i] = MyStrategy.GroupOrderState.F;
                 else mkGM(rectangleA.g, rectangleA, rectangleB.cX(), rectangleA.cY());
                 break;
             case NY:
-                if (U.eD(rectangleA.cY(), rectangleB.cY())) ggs[i] = MyStrategy.GroupGameState.F;
+                if (U.eD(rectangleA.cY(), rectangleB.cY())) ggs[i] = MyStrategy.GroupOrderState.F;
                 else mkGM(rectangleA.g, rectangleA, rectangleA.cX(), rectangleB.cY());
                 break;
         }
         return gd;
     }
 
-    MyStrategy.GroupGameState[] ggs = new MyStrategy.GroupGameState[]{MyStrategy.GroupGameState.I};
+    MyStrategy.GroupOrderState[] ggs = new MyStrategy.GroupOrderState[]{MyStrategy.GroupOrderState.I};
     void mkGM(int id, Rectangle gr, double x, double y) {
         mkGM(id, gr, x, y, 0, true);
     }

@@ -70,8 +70,11 @@ public class StrategyLogic {
     }
 
     Accumulator acc(Map<VehicleType, Accumulator> vu, VehicleType vehicleType) { return vu.getOrDefault(vehicleType, Accumulator.ZERO); }
-    Accumulator sum(Map<VehicleType, Accumulator> vu, VehicleType... vehicleType) {
-        return new Accumulator(Arrays.stream(vehicleType).map(vt -> acc(vu, vt)).mapToLong(Accumulator::v).sum());
+    Accumulator sum(Map<VehicleType, Accumulator> vu, VehicleType... vehicleTypes) {
+        return new Accumulator(Arrays.stream(vehicleTypes).map(vt -> acc(vu, vt)).mapToLong(Accumulator::v).sum());
+    }
+    Accumulator sum(Map<VehicleType, Accumulator> vu, Set<VehicleType> vehicleTypes) {
+        return new Accumulator(vehicleTypes.stream().map(vt -> acc(vu, vt)).mapToLong(Accumulator::v).sum());
     }
 
     void zipGroup(int id, double speed, VehicleType... types) {
@@ -164,39 +167,41 @@ public class StrategyLogic {
         return vehicleUpdates;
     }
 
-    void protectGround(int arial, int ground) {
+    boolean protectGround(int arial, int ground) {
         Rectangle srs = OfVG(arial);
         Rectangle drs = OfVG(ground);
         if (srs.dfct(drs) > U.EPS) {
             makeGroupMove(arial, srs, drs.cX(), drs.cY(), 0, true);
+            return true;
         }
+        return false;
     }
 
-    boolean gatherAG(double scale, MyStrategy.GroupGameState[] ggs, int i, Rectangle... rectangles) {
+    boolean gatherAG(double scale, MyStrategy.GroupOrderState[] ggs, int i, Rectangle... rectangles) {
         Rectangle rectangleA = rectangles[0]; Rectangle rectangleB = rectangles[1];
-        boolean gd = ggs[i] == MyStrategy.GroupGameState.F || rectangles[0].dfct(rectangles[1]) <= scale;
+        boolean gd = ggs[i] == MyStrategy.GroupOrderState.F || rectangles[0].dfct(rectangles[1]) <= scale;
         switch (ggs[i]) {
             case I:
                 if (rectangleA.cX() != rectangleB.cX() && rectangleA.cY() != rectangleB.cY()) {
-                    ggs[i] = rectangleA.b > rectangleB.t ? MyStrategy.GroupGameState.INY : MyStrategy.GroupGameState.INX;
+                    ggs[i] = rectangleA.b > rectangleB.t ? MyStrategy.GroupOrderState.INY : MyStrategy.GroupOrderState.INX;
                 }
-                else if (rectangleA.cX() != rectangleB.cX()) ggs[i] = MyStrategy.GroupGameState.INY;
-                else if (rectangleA.cY() != rectangleB.cY()) ggs[i] = MyStrategy.GroupGameState.INX;
+                else if (rectangleA.cX() != rectangleB.cX()) ggs[i] = MyStrategy.GroupOrderState.INY;
+                else if (rectangleA.cY() != rectangleB.cY()) ggs[i] = MyStrategy.GroupOrderState.INX;
                 break;
             case INX:
-                if (U.eD(rectangleA.cX(), rectangleB.cX() + scale)) ggs[i] = MyStrategy.GroupGameState.NY;
+                if (U.eD(rectangleA.cX(), rectangleB.cX() + scale)) ggs[i] = MyStrategy.GroupOrderState.NY;
                 else makeTypedMove(rectangleA.vt, rectangleA, rectangleB.cX() + scale, rectangleA.cY());
                 break;
             case INY:
-                if (U.eD(rectangleA.cY(), rectangleB.cY() + scale)) ggs[i] = MyStrategy.GroupGameState.NX;
+                if (U.eD(rectangleA.cY(), rectangleB.cY() + scale)) ggs[i] = MyStrategy.GroupOrderState.NX;
                 else makeTypedMove(rectangleA.vt, rectangleA, rectangleA.cX(), rectangleB.cY() + scale);
                 break;
             case NX:
-                if (U.eD(rectangleA.cX(), rectangleB.cX())) ggs[i] = MyStrategy.GroupGameState.F;
+                if (U.eD(rectangleA.cX(), rectangleB.cX())) ggs[i] = MyStrategy.GroupOrderState.F;
                 else makeTypedMove(rectangleA.vt, rectangleA, rectangleB.cX(), rectangleA.cY());
                 break;
             case NY:
-                if (U.eD(rectangleA.cY(), rectangleB.cY())) ggs[i] = MyStrategy.GroupGameState.F;
+                if (U.eD(rectangleA.cY(), rectangleB.cY())) ggs[i] = MyStrategy.GroupOrderState.F;
                 else makeTypedMove(rectangleA.vt, rectangleA, rectangleA.cX(), rectangleB.cY());
                 break;
         }
@@ -262,7 +267,7 @@ public class StrategyLogic {
         P2D destination = vGd.get(id);
         if (destination != null && destination.compareTo(new P2D(x, y)) == 0 && updates > 0)
             return true;
-        Rectangle rectangle = OfV(gV(id));
+        Rectangle rectangle = sOfVG(id)[0];
         if (rectangle.include(x, y)) {
             vGd.remove(id);
             if (rectangle.square() > 25_000)

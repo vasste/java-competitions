@@ -1,8 +1,6 @@
 import model.*;
 
-import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Map;
+import java.util.*;
 
 import static java.lang.Math.PI;
 import static model.ActionType.CLEAR_AND_SELECT;
@@ -13,30 +11,46 @@ public final class MyStrategy implements Strategy {
     final VehicleType[] GROUND_TYPES = new VehicleType[]{TANK, ARRV, IFV};
     public enum VehicleTypeState {MOVING, WAITING, SCALING}
     public enum GameState {ORDER_CREATION, ORDER_POSITIONING, ORDER_SCALING,
-        ORDER_GROUPING, ORDER_ROTATION, NUCLEAR_STRIKE, NUCLEAR_STRIKE_RECOVERY,
-        NUCLEAR_STRIKE_FINISH_RECOVERY, TACTICAL_EXECUTION, WAIT_COMMAND_FINISH,
-        TACTICAL_EXECUTION_SINGLE, TACTICAL_EXECUTION_MULTI, ENSF, FHFG, FHNSD, FHBNSD, END}
-    public enum GroupGameState { I, INX, INY, NX, NY, F }
+        ORDER_GROUPING, ORDER_ROTATION, TACTICAL_EXECUTION, TACTICAL_EXECUTION_GROUPS, TACTICAL_EXECUTION_SINGLE,
+        TACTICAL_EXECUTION_CHANGE}
+    public enum GroupGameState {NUCLEAR_STRIKE, NUCLEAR_STRIKE_RECOVERY, WAIT_COMMAND_FINISH, TACTICAL_EXECUTION}
+    public enum GroupOrderState { I, INX, INY, NX, NY, F }
     static final Boolean DEBUG = true;
     private final StrategyLogic logic = new StrategyLogic();
     GameState gameState = GameState.ORDER_CREATION;
-    GroupGameState[] ggs = new GroupGameState[]{GroupGameState.I, GroupGameState.I, GroupGameState.I};
-    GameState gameStateBeforeNuclearStrike;
+    GroupOrderState[] ggs = new GroupOrderState[]{GroupOrderState.I, GroupOrderState.I, GroupOrderState.I};
+    Map<Integer, GroupGameState> groupGameStateMap = new HashMap<>();
+    Map<Integer, Set<VehicleType>> groupTypesMap = new HashMap<>();
+    Set<Integer> groups = new HashSet<>();
 
     public static final int GIAT    = 1;
     public static final int GFH     = 2;
     public static final int GFHTAI  = 3;
 
+    boolean restore() {
+        Rectangle[] rectangles = logic.sOfVG(GFH, GIAT);
+        double angleA = rectangles[0].angle;
+        double angleG = rectangles[1].angle;
+        if (!U.eD(angleG, angleA)) {
+            logic.rotateGroup(GFH, angleA - angleG, rectangles[0].cX(), rectangles[0].cY(), rectangles[0].speed);
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public void move(Player me, World world, Game game, Move move) {
         Map<VehicleType, Accumulator> vu = logic.update(me, world, game);
         if (me.getRemainingActionCooldownTicks() > 0) return;
-        if (logic.enemy.getNextNuclearStrikeTickIndex() > 0 && gameState != GameState.NUCLEAR_STRIKE_RECOVERY) {
-            gameStateBeforeNuclearStrike = gameState;
-            gameState = GameState.NUCLEAR_STRIKE;
+        if (logic.enemy.getNextNuclearStrikeTickIndex() > 0) {
+            for (Integer gid : groupGameStateMap.keySet()) {
+                if (groupGameStateMap.get(gid) != GroupGameState.NUCLEAR_STRIKE_RECOVERY)
+                    groupGameStateMap.put(gid, GroupGameState.NUCLEAR_STRIKE);
+            }
         }
         MoveBuilder nextMove = logic.nextMove();
         if (nextMove == null) {
+            double wordedSquare = world.getHeight() * world.getWidth();
             switch (gameState) {
                 case ORDER_CREATION:
                     Rectangle[] rs = logic.sOfVT(GROUND_TYPES);
@@ -54,6 +68,12 @@ public final class MyStrategy implements Strategy {
                         while (!r.commands.isEmpty()) logic.positioningMoves.add(r.commands.pollLast());
                     }
                     gameState = GameState.ORDER_POSITIONING;
+                    groupTypesMap.put(GFH, EnumSet.of(FIGHTER, HELICOPTER));
+                    groupTypesMap.put(GIAT, EnumSet.of(TANK, IFV, ARRV));
+                    groupTypesMap.put(GFHTAI, EnumSet.of(FIGHTER, HELICOPTER, TANK, IFV, ARRV));
+                    groupGameStateMap.put(GFH, GroupGameState.TACTICAL_EXECUTION);
+                    groupGameStateMap.put(GIAT, GroupGameState.TACTICAL_EXECUTION);
+                    groupGameStateMap.put(GFHTAI, GroupGameState.TACTICAL_EXECUTION);
                     break;
                 case ORDER_POSITIONING:
                     boolean arial = false, ground = false;
@@ -63,8 +83,8 @@ public final class MyStrategy implements Strategy {
                             logic.scaleVehicles(FIGHTER, 1.6, ars[0]);
                             logic.scaleVehicles(HELICOPTER, 1.6, ars[1]);
                         } else if (logic.vehicleTypeStateMap.get(FIGHTER) == VehicleTypeState.SCALING) {
-                            if (ggs[0] == GroupGameState.NX) logic.gatheredHorizontally.put(GFH, true);
-                            else if (ggs[0] == GroupGameState.NY) logic.gatheredHorizontally.put(GFH, false);
+                            if (ggs[0] == GroupOrderState.NX) logic.gatheredHorizontally.put(GFH, true);
+                            else if (ggs[0] == GroupOrderState.NY) logic.gatheredHorizontally.put(GFH, false);
                             Rectangle[] rectangles = logic.sOfVT(ARIAL_TYPES);
                             arial = logic.gatherAG(5, ggs, 0, rectangles);
                         }
@@ -112,130 +132,101 @@ public final class MyStrategy implements Strategy {
                     }
                     break;
                 case ORDER_ROTATION:
-                    if (logic.sum(vu, ARIAL_TYPES).zero()) logic.protectGround(GFH, GIAT);
-                    if (logic.sum(vu, GROUND_TYPES).zero()) {
-                        Rectangle[] rectangles = logic.sOfVG(GFH, GIAT);
-                        double[] speeds = logic.minVehicleSpeed(GFH, GIAT);
-                        double angleG = rectangles[0].angle;
-                        double angleA = rectangles[1].angle;
-                        if (!U.eD(angleG, angleA))
-                            logic.rotateGroup(GFH, angleA - angleG, rectangles[0].cX(), rectangles[0].cY(), speeds[0]);
-                        logic.createGroupTIAFH(GFH, GIAT, GFHTAI);
-                        gameState = GameState.WAIT_COMMAND_FINISH;
+                    if (logic.sum(vu, ARIAL_TYPES).zero()) {
+                        if (!logic.protectGround(GFH, GIAT)) {
+                            if (!restore()) {
+                                logic.createGroupTIAFH(GFH, GIAT, GFHTAI);
+                                gameState = GameState.TACTICAL_EXECUTION_CHANGE;
+                            }
+                        }
                     }
                     break;
                 case TACTICAL_EXECUTION:
                     Rectangle[] evR = logic.sOfVT(logic.eV(), FIGHTER, HELICOPTER, TANK);
-                    double wordedSquare = world.getHeight()*world.getWidth();
-                    if ((evR[0].square()/wordedSquare >= 0.5 || evR[1].square()/wordedSquare >= 0.5) && evR[2].square()/wordedSquare < 0.1) {
-                        gameState = GameState.TACTICAL_EXECUTION_MULTI;
-                    } else {
+                    if ((evR[0].square() / wordedSquare >= 0.5 || evR[1].square() / wordedSquare >= 0.5) && evR[2].square() / wordedSquare < 0.1) {
+                        gameState = GameState.TACTICAL_EXECUTION_GROUPS;
+                        groups = new HashSet<>(Arrays.asList(GFH, GIAT));
+                    } else if (evR[0].square() / wordedSquare < 0.15 && evR[1].square() / wordedSquare < 0.15) {
+                        logic.protectGround(GFH, GIAT);
+                        groups = new HashSet<>(Arrays.asList(GFHTAI));
                         gameState = GameState.TACTICAL_EXECUTION_SINGLE;
                     }
-//                case M:
-//                    Rectangle[] evR = sOfVT(eV(), ARIAL_TYPES, TANK);
-//                    if ((evR[0].square()/wordedSquare >= 0.5 || evR[1].square()/wordedSquare >= 0.5) && evR[2].square()/wordedSquare < 0.1) {
-//                        Rectangle rectangle = OfVG(GG);
-//                        makeGroupMove(GG, rectangle, rectangle.cX(), rectangle.cY(), 0, true);
-//                        Rectangle rectangleFH = sOfVG(GFH)[0];
-//                        scaleGroup(GFH, 1.4, rectangleFH.l, rectangleFH.t);
-//                        gameState = GameState.FHFG;
-//                    } else {
-//                        if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GG, move, enemy, GameState.BNSD)) return;
-//
-//                    }
                     break;
-                case TACTICAL_EXECUTION_MULTI:
-                    //break;
+                case TACTICAL_EXECUTION_GROUPS:
+                    evR = logic.sOfVT(logic.eV(), FIGHTER, HELICOPTER, TANK);
+                    if (evR[0].square() / wordedSquare < 0.15 && evR[1].square() / wordedSquare < 0.15) {
+                        if (logic.protectGround(GFH, GIAT)) gameState = GameState.TACTICAL_EXECUTION_CHANGE;
+                    }
+                    break;
+                case TACTICAL_EXECUTION_CHANGE:
+                    if (logic.sum(vu, VehicleType.values()).zero()) {
+                        gameState = GameState.TACTICAL_EXECUTION;
+                    } else return;
                 case TACTICAL_EXECUTION_SINGLE:
-                    if (!logic.setupNuclearStrike(GFHTAI)) {
-                        VehicleTick ep = logic.cEP(false, GFHTAI);
-                        if (ep == null) return;
-                        if (logic.myVehicleReadyAttack(GFHTAI) < 5) {
-                            Rectangle rectangle = logic.OfVG(GFHTAI);
-                            Line line = new Line(new P2D(ep.x(), ep.y()), new P2D(rectangle.cX(), rectangle.cY()));
-                            double angle = Line.angle(line, rectangle.sideW());
-                            if (Math.abs(PI/2 - angle) > 0.1) {
-                                logic.rotateGroup(GFHTAI, angle - PI/2, rectangle.cX(), rectangle.cY(), rectangle.speed);
-                                gameState = GameState.WAIT_COMMAND_FINISH;
-                            } else {
-                                if (!logic.makeTacticalGroupMove(GFHTAI, ep.x(), ep.y(), rectangle.speed, logic.sum(vu, VehicleType.values()).value)) {
-                                    gameState = GameState.WAIT_COMMAND_FINISH;
+                    if (restore() || logic.protectGround(GFH, GIAT)) gameState = GameState.TACTICAL_EXECUTION_CHANGE;
+                    break;
+            }
+
+            for (Integer gid : groups) {
+                GroupGameState groupGameState = groupGameStateMap.get(gid);
+                switch (groupGameState) {
+                    case TACTICAL_EXECUTION:
+                        if (!logic.setupNuclearStrike(gid)) {
+                            VehicleTick ep = logic.cEP(false, gid);
+                            if (ep == null) return;
+                            if (logic.myVehicleReadyAttack(gid) < 20) {
+                                Rectangle rectangle = logic.sOfVG(gid)[0];
+                                Line line = new Line(new P2D(ep.x(), ep.y()), new P2D(rectangle.cX(), rectangle.cY()));
+                                double angle = Line.angle(line, rectangle.sideW());
+                                if (Math.abs(PI/2 - angle) > 0.01) {
+                                    logic.rotateGroup(rectangle.g, -PI/2 + angle, rectangle.cX(), rectangle.cY(), rectangle.speed);
+                                    groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
+                                } else {
+                                    if (!logic.makeTacticalGroupMove(gid, ep.x(), ep.y(), rectangle.speed,
+                                            logic.sum(vu, groupTypesMap.get(gid)).value)) {
+                                        groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
+                                    }
                                 }
                             }
                         }
-                    }
-                    break;
-                case WAIT_COMMAND_FINISH:
-                    if (logic.sum(vu, VehicleType.values()).zero()) gameState = GameState.TACTICAL_EXECUTION;
-                    break;
-//                case FHFG:
-//                    if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GFH, move, enemy, GameState.FHNSD)) return;
-//                    if (logic.sum(vu, ARIAL_TYPES).zero()) gameState = GameState.ENSF;
-//                    break;
-//                case ENSF:
-//                    Rectangle rectangle = OfVG(GFH);
-//                    if (rectangle.isRectNaN()) {
-//                        noArial = true;
-//                        gameState = GameState.M;
-//                        return;
-//                    }
-//                    if (enemy.getNextNuclearStrikeTickIndex() > 0 && nuclearStrikeDetected(GFH, move, enemy, GameState.FHNSD)) return;
-//                    evR = sOfVT(eV(), ARIAL_TYPES);
-//                    if (evR[0].square()/wordedSquare < 0.15 && evR[1].square()/wordedSquare < 0.15) {
-//                        Rectangle drs = OfVG(GG);
-//                        if (rectangle.dfct(drs) > U.EPS) {
-//                            makeGroupMove(GFH, rectangle, drs.cX(), drs.cY(), minASpeed, true);
-//                            gameState = GameState.FHFG;
-//                        } else {
-//                            gameState = GameState.FG;
-//                        }
-//                    } else
-//                        if (!makeNuclearStrike(GFH)) {
-//                            VehicleTick ep = cEP(true, GFH);
-//                            if (ep == null) return;
-//                            if (mVt(ARIAL_TYPES).filter(v -> v.attack(ep)).count() < 5) {
-//                                makeGroupMove(GFH, ep.x(), ep.y(), minASpeed * wS(game, rectangle, world, weatherTypes) * 0.75, (vu, ARIAL_TYPES).v());
-//                            }
-//                        }
-//                    break;
-                case NUCLEAR_STRIKE:
-                    if (logic.sum(vu, VehicleType.values()).zero()) {
-                        Rectangle[] rectangles = logic.sOfVG(GFH, GIAT);
+                        break;
+                    case WAIT_COMMAND_FINISH:
+                        if (logic.sum(vu, groupTypesMap.get(gid)).zero()) groupGameState = GroupGameState.TACTICAL_EXECUTION;
+                        break;
+                    case NUCLEAR_STRIKE:
+                        Rectangle rectangle = logic.sOfVG(gid)[0];
                         Player enemy = logic.enemy;
-                        for (int i = 0; i < rectangles.length; i++) {
-                            double y = enemy.getNextNuclearStrikeY();
-                            double x = enemy.getNextNuclearStrikeX();
-                            Rectangle rectangle = Rectangle.nsRectangle(new P2D(x, y));
-                            if (rectangles[i].intersects(rectangle)) {
-                                logic.updateNuclearStrikeGroupPoint(rectangles[i].g, rectangles[i]);
-                                logic.scaleGroup(10, x, y, rectangles[i].speed, rectangles[i].g);
+                        double y = enemy.getNextNuclearStrikeY();
+                        double x = enemy.getNextNuclearStrikeX();
+                        Rectangle nsRectangle = Rectangle.nsRectangle(new P2D(x, y));
+                        if (rectangle.intersects(nsRectangle)) {
+                            rectangle.nsp = new P2D(x, y);
+                            logic.updateNuclearStrikeGroupPoint(rectangle.g, rectangle);
+                            logic.scaleGroup(10, x, y, rectangle.speed, rectangle.g);
+                            groupGameState = GroupGameState.NUCLEAR_STRIKE_RECOVERY;
+                        } else {
+                            logic.updateNuclearStrikeGroupPoint(rectangle.g, null);
+                            groupGameState = GroupGameState.TACTICAL_EXECUTION;
+                        }
+                        break;
+                    case NUCLEAR_STRIKE_RECOVERY:
+                        if (logic.enemy.getNextNuclearStrikeTickIndex() < 0) {
+                            rectangle = logic.sOfVG(gid)[0];
+                            Rectangle nsR = logic.nuclearStrikeGroupPoint(rectangle.g);
+                            if (nsR != null) {
+                                P2D center = rectangle.c();
+                                double dx = nsR.cX() - nsR.nsp.x;
+                                double dy = nsR.cY() - nsR.nsp.y;
+                                logic.scaleGroup(nsR.square() / rectangle.square(), center.x + dx, center.y + dy,
+                                        rectangle.speed, rectangle.g);
+                                groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
+                            } else {
+                                groupGameState = GroupGameState.TACTICAL_EXECUTION;
                             }
                         }
-                        gameState = GameState.NUCLEAR_STRIKE_RECOVERY;
-                    }
-                    break;
-                case NUCLEAR_STRIKE_RECOVERY:
-                    if (logic.enemy.getNextNuclearStrikeTickIndex() < 0) {
-                        Rectangle[] rectangles = logic.sOfVG(GFH, GIAT);
-                        for (int i = 0; i < rectangles.length; i++) {
-                            Rectangle nsp = logic.nuclearStrikeGroupPoint(rectangles[i].g);
-                            if (nsp != null) {
-                                P2D center = rectangles[i].c();
-                                logic.scaleGroup(nsp.square()/rectangles[i].square(), center.x, center.y, rectangles[i].speed, rectangles[i].g);
-                            }
-                        }
-                        gameState = GameState.NUCLEAR_STRIKE_FINISH_RECOVERY;
-                    }
-                    break;
-                case NUCLEAR_STRIKE_FINISH_RECOVERY:
-                    if (logic.sum(vu, VehicleType.values()).zero()) {
-                        gameState = gameStateBeforeNuclearStrike;
-                        Rectangle[] rectangles = logic.sOfVG(GFH, GIAT);
-                        logic.rotateGroup(GFH, PI/4, rectangles[0].cX(), rectangles[0].cY(), rectangles[0].speed);
-                        logic.rotateGroup(GIAT, PI/4, rectangles[1].cX(), rectangles[1].cY(), rectangles[1].speed);
-                    }
-                    break;
+                        break;
+                }
+                groupGameStateMap.put(gid, groupGameState);
             }
         }
         nextMove = nextMove == null ? logic.nextMove() : nextMove;
