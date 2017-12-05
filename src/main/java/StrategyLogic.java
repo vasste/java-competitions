@@ -29,7 +29,6 @@ public class StrategyLogic {
     Map<Integer, P2D> vGd = new HashMap<>();
     P2D nuclearStrikePoint;
     Map<Integer, Rectangle> nuclearStrikeGroupRects = new HashMap<>();
-    boolean noArial = false;
     Queue<MoveBuilder> positioningMoves = new LinkedList<>();
     Map<VehicleType, MyStrategy.VehicleTypeState> vehicleTypeStateMap = new HashMap<>();
     Map<Integer, Boolean> gatheredHorizontally = new HashMap<>();

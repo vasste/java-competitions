@@ -7,6 +7,8 @@ import java.util.*;
 import static java.lang.StrictMath.max;
 
 public class OrderGraph {
+
+
     public static GraphVertex bfs(int[][] field, int si, int sj, int di, int dj) {
         Queue<GraphVertex> qp = new LinkedList<>();
         qp.add(new GraphVertex(si, sj, null));

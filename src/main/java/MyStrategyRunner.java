@@ -25,7 +25,7 @@ public final class MyStrategyRunner {
                         Thread.sleep(1000);
                         MyStrategyRunner runner =
                                 new MyStrategyRunner(args.length == 3 ? args : new String[]{"127.0.0.1", "31002", "0000000000000000"});
-                        runner.run(new WorldDominationStrategy());
+                        runner.run(new FighterStrategy());
                     } catch (IOException | InterruptedException e) {
                         e.printStackTrace();
                     }

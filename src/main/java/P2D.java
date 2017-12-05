@@ -78,6 +78,10 @@ public class P2D implements Comparable<P2D> {
                 (int) StrictMath.floor(StrictMath.min(world.getHeight()/U.PALE_SIDE - 1, y/U.PALE_SIDE))};
     }
 
+    P2D add(double radius) {
+        return new P2D(x + radius, y + radius);
+    }
+
     static double det(double a, double b, double c, double d) { return a*d - b*c; }
     static double distanceTo(P2D a, P2D b) { return hypot(a.x - b.x, a.y - b.y); }
     static double distanceTo(P2D a, Unit b) { return hypot(a.x - b.getX(), a.y - b.getY()); }

@@ -33,7 +33,10 @@ public class Rectangle implements Comparable<Rectangle> {
     }
     Rectangle(Vehicle v) { this(v.getX() - v.getRadius(), v.getY() - v.getRadius(), v.getY() + v.getRadius(), v.getX() + v.getRadius()); }
 
-    double square() { return abs(r - l)*abs(b - t); }
+    double square() {
+        if (vts.isEmpty()) return 0;
+        return abs(r - l)*abs(b - t);
+    }
     double dfct(Rectangle rectangle) { return hypot(rectangle.cX() - cX(), rectangle.cY() - cY()); }
     P2D c() { return new P2D(cX(), cY()); }
     double cX() { return (l + r)/2; }
@@ -51,12 +54,20 @@ public class Rectangle implements Comparable<Rectangle> {
     
     P2D square(int i, int j) { return new P2D(l + j*58 + j*16 + 58/2, t + i*58 + i*16 + 58/2); }
     double side() {return max(P2D.distanceTo(new P2D(bx, by),new P2D(ax, ay)), P2D.distanceTo(new P2D(bx, by),new P2D(cx, cy))); }
-    Line sideW() {
-        if (P2D.distanceTo(new P2D(bx, by),new P2D(ax, ay)) > P2D.distanceTo(new P2D(bx, by),new P2D(cx, cy)))
-            return new Line(new P2D(bx, by),new P2D(ax, ay));
-        else return new Line(new P2D(bx, by),new P2D(cx, cy));
+    Line sightLine() {
+        if (P2D.distanceTo(new P2D(bx, by), new P2D(ax, ay)) > P2D.distanceTo(new P2D(bx, by),new P2D(cx, cy)))
+            return new Line(new P2D((ax+bx)/2, (ay+by)/2), c());
+        else return new Line(new P2D((bx+cx)/2, (by+cy)/2), c());
     }
     P2D[] points() { return new P2D[]{new P2D(ax, ay), new P2D(bx, by), new P2D(cx, cy), new P2D(dx, dy)}; }
+    boolean rotation(double width, double height) {
+        double radius = 0;
+        P2D center = c();
+        for (P2D d : points()) {
+            radius = Math.max(radius, P2D.distanceTo(center, d));
+        }
+        return center.x - radius >= 0 && center.x + radius <= width && center.y - radius >= 0 && center.y + radius <= height;
+    }
     Line[] edges() {
         P2D[] points = points();
         return new Line[]{new Line(points[0], points[1]), new Line(points[1], points[2]), new Line(points[2], points[3]),
