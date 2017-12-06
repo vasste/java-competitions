@@ -7,9 +7,7 @@ import java.util.stream.Stream;
 import static java.lang.Math.PI;
 import static java.lang.Math.round;
 import static model.ActionType.*;
-import static model.ActionType.ASSIGN;
 import static model.VehicleType.*;
-import static model.VehicleType.ARRV;
 
 /**
  * @author Vasilii Stepanov.
@@ -27,13 +25,15 @@ public class StrategyLogic {
     final Map<VehicleType, Accumulator> vehicles = new HashMap<>();
     Queue<MoveBuilder> moves = new LinkedList<>();
     Map<Integer, P2D> vGd = new HashMap<>();
-    P2D nuclearStrikePoint;
     Map<Integer, Rectangle> nuclearStrikeGroupRects = new HashMap<>();
     Queue<MoveBuilder> positioningMoves = new LinkedList<>();
     Map<VehicleType, MyStrategy.VehicleTypeState> vehicleTypeStateMap = new HashMap<>();
     Map<Integer, Boolean> gatheredHorizontally = new HashMap<>();
     VehicleType[] mainOrder;
     Random random;
+    double[][] worldSpeedFactors;
+    Map<Long, FacilityPoint> facilitiesPoint = new HashMap<>();
+    Map<Long, Facility> facilityMap = new HashMap<>();
 
     Map<VehicleType, Accumulator> update(Player me, World world, Game game) {
         this.me = me;
@@ -43,12 +43,87 @@ public class StrategyLogic {
         if (random == null) random = new Random(game.getRandomSeed());
         Player[] players = world.getPlayers();
         for (int i = 0; i < players.length; i++) if (players[i].getId() != me.getId()) enemy = players[i];
-        weatherTypes = world.getWeatherByCellXY();
-        terrainTypes = world.getTerrainByCellXY();
-        if (enemy.getNextNuclearStrikeTickIndex() > 0) {
-            nuclearStrikePoint = new P2D(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY());
+        Facility[] facilities = world.getFacilities();
+        for (int i = 0; i < facilities.length; i++) {
+            Facility facility = facilities[i];
+            facilityMap.put(facility.getId(), facility);
+        }
+        if (worldSpeedFactors == null) {
+            weatherTypes = world.getWeatherByCellXY();
+            terrainTypes = world.getTerrainByCellXY();
+            worldSpeedFactors = new double[(int)(world.getHeight()/U.PALE_SIDE)][(int)(world.getWidth()/U.PALE_SIDE)];
+            for (int i = 0; i < worldSpeedFactors.length; i++) {
+                for (int j = 0; j < worldSpeedFactors[i].length; j++) {
+                    worldSpeedFactors[i][j] = game.getPlainTerrainSpeedFactor() - VehicleTick.tSf(game, terrainTypes[i][j]);
+                }
+            }
+            for (int i = 0; i < facilities.length; i++) {
+                Facility from = facilities[i];
+                int[] fij = new P2D(from.getLeft() + 32, from.getTop() + 32).inWorld(world);
+                FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, fij[0], fij[1]);
+                FacilityPoint point = new FacilityPoint();
+                for (int j = 0; j < facilities.length; j++) {
+                    if (j == i) continue;
+                    Facility to = facilities[j];
+                    int[] tij = new P2D(to.getLeft() + 32, to.getTop() + 32).inWorld(world);
+                    point.facilities.put(to.getId(), route.pathTo(tij[0], tij[1]));
+                }
+                point.build(facilitiesPoint);
+                if (point.facilityRouteTo == 0) point.facilityRouteTo = facilities[0].getId();
+                facilitiesPoint.put(from.getId(), point);
+            }
         }
         return vu;
+    }
+
+    void setupUnitProduction() {
+        for (Facility facility : facilityMap.values()) {
+            if (facility.getOwnerPlayerId() == me.getId() && facility.getProductionProgress() == 0) {
+                if (facility.getType() == FacilityType.VEHICLE_FACTORY)
+                    moves.add(MoveBuilder.c(SETUP_VEHICLE_PRODUCTION)
+                            .vehicleType(VehicleType.values()[random.nextInt(5)]).facilityId(facility.getId()));
+            }
+        }
+    }
+
+    boolean defineRouteToNearestFactory(int gid) {
+        if (facilityMap.isEmpty()) return false;
+
+        Rectangle  rectangle = sOfVG(gid)[0];
+        int[] ij = rectangle.c().inWorld(world);
+        FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, ij[0], ij[1]);
+        double minStepsCost = Double.MAX_VALUE;
+        Stack<FactoriesRoute.N> minRoute = null;
+        for (Facility to : facilityMap.values()) {
+            int[] fij = new P2D(to.getLeft() + 32, to.getTop() + 32).inWorld(world);
+            Stack<FactoriesRoute.N> steps = route.pathTo(fij[0], fij[0]);
+            double cost = stepsCost(steps);
+            if (minStepsCost > cost) {
+                minStepsCost = cost;
+                minRoute = steps;
+            }
+        }
+
+        if (minRoute != null) {
+            FactoriesRoute.N from = minRoute.pop();
+            P2D fromP = new P2D(from.x * U.PALE_SIDE, from.y * U.PALE_SIDE);
+            for (FactoriesRoute.N to : minRoute) {
+                moves.add(MoveBuilder.c(ActionType.CLEAR_AND_SELECT).group(gid));
+                P2D dst = new P2D(to.x * U.PALE_SIDE, to.y * U.PALE_SIDE);
+                moves.add(MoveBuilder.c(ActionType.MOVE).dfCToXY(fromP, dst.x, dst.y));
+                fromP = dst;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    static double stepsCost(Stack<FactoriesRoute.N> steps) {
+        double cost = 0;
+        for (FactoriesRoute.N step : steps) {
+            cost += step.cost;
+        }
+        return cost;
     }
 
     void updateNuclearStrikeGroupPoint(int gid, Rectangle nuclearStrikeGroupRect) {
@@ -66,6 +141,17 @@ public class StrategyLogic {
     void addNextMove(MoveBuilder builder) {
         if (builder == null) return;
         moves.add(builder);
+    }
+
+    boolean restore() {
+        Rectangle[] rectangles = sOfVG(MyStrategy.GFH, MyStrategy.GIAT);
+        double angleA = rectangles[0].angle;
+        double angleG = rectangles[1].angle;
+        if (!U.eD(angleG, angleA)) {
+            rotateGroup(MyStrategy.GFH, angleG - angleA, rectangles[0].cX(), rectangles[0].cY(), rectangles[1].speed);
+            return true;
+        }
+        return false;
     }
 
     Accumulator acc(Map<VehicleType, Accumulator> vu, VehicleType vehicleType) { return vu.getOrDefault(vehicleType, Accumulator.ZERO); }
@@ -229,8 +315,8 @@ public class StrategyLogic {
         return attack;
     }
 
-    boolean setupNuclearStrike(int id) {
-        if (me.getNextNuclearStrikeTickIndex() > 0 || me.getRemainingNuclearStrikeCooldownTicks() > 0) return false;
+    void setupNuclearStrike(int id) {
+        if (me.getNextNuclearStrikeTickIndex() > 0 || me.getRemainingNuclearStrikeCooldownTicks() > 0) return;
         Rectangle.Builder vRB = new Rectangle.Builder();
         for (VehicleTick fv : (Iterable<VehicleTick>) mVt(FIGHTER, HELICOPTER)::iterator) {
             vRB.combine(fv.see(game, world, weatherTypes, terrainTypes));
@@ -257,9 +343,7 @@ public class StrategyLogic {
             Rectangle rectangle = sOfVG(id)[0];
             makeGroupMove(id, rectangle, rectangle.cX(), rectangle.cY(), 0, true);
             moves.add(new MoveBuilder(TACTICAL_NUCLEAR_STRIKE).vehicleId(cff.id()).x(eVns.x()).y(eVns.y()));
-            return true;
         }
-        return false;
     }
 
     boolean makeTacticalGroupMove(int id, double x, double y, double ms, long updates) {
@@ -332,7 +416,7 @@ public class StrategyLogic {
 
     void rotateGroup(int id, double angle, double x, double y, double speed) {
         moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
-        moves.add(MoveBuilder.c(ROTATE).angle(angle).x(x).y(y).maxAngularSpeed(speed));
+        moves.add(MoveBuilder.c(ROTATE).angle(angle).x(x).y(y).maxSpeed(speed).maxAngularSpeed(speed));
     }
 
     void createGroupFH(int id) {
@@ -430,5 +514,22 @@ public class StrategyLogic {
 
     double vehicleSpeed(Game game, VehicleTick vehicle, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
         return vehicle.speed(game, weatherTypes, terrainTypes);
+    }
+
+    static class FacilityPoint {
+        long facilityRouteTo;
+        Map<Long, Stack<FactoriesRoute.N>> facilities = new HashMap<>();
+
+        void build(Map<Long, FacilityPoint> facilitiesPoint) {
+            double minCost = Double.MAX_VALUE;
+            for (Long id : facilities.keySet()) {
+                Stack<FactoriesRoute.N> route = facilities.get(id);
+                double routeCost = stepsCost(route);
+                if (minCost > routeCost && facilitiesPoint.get(id) == null) {
+                    minCost = routeCost;
+                    facilityRouteTo = id;
+                }
+            }
+        }
     }
 }

@@ -27,27 +27,16 @@ public final class MyStrategy implements Strategy {
     public static final int GFH     = 2;
     public static final int GFHTAI  = 3;
 
-    boolean restore() {
-        Rectangle[] rectangles = logic.sOfVG(GFH, GIAT);
-        double angleA = rectangles[0].angle;
-        double angleG = rectangles[1].angle;
-        if (!U.eD(angleG, angleA)) {
-            logic.rotateGroup(GFH, Math.abs(angleA - angleG), rectangles[0].cX(), rectangles[0].cY(), rectangles[0].speed);
-            return true;
-        }
-        return false;
-    }
-
     @Override
     public void move(Player me, World world, Game game, Move move) {
         Map<VehicleType, Accumulator> vu = logic.update(me, world, game);
-        if (me.getRemainingActionCooldownTicks() > 0) return;
         if (logic.enemy.getNextNuclearStrikeTickIndex() > 0) {
             for (Integer gid : groupGameStateMap.keySet()) {
                 if (groupGameStateMap.get(gid) != GroupGameState.NUCLEAR_STRIKE_RECOVERY)
                     groupGameStateMap.put(gid, GroupGameState.NUCLEAR_STRIKE);
             }
         }
+        if (me.getRemainingActionCooldownTicks() > 0) return;
         MoveBuilder nextMove = logic.nextMove();
         if (nextMove == null) {
             double wordedSquare = world.getHeight() * world.getWidth();
@@ -100,7 +89,7 @@ public final class MyStrategy implements Strategy {
                         Rectangle[] order = logic.sOfVT(GROUND_TYPES);
                         Arrays.sort(order);
                         boolean horizontally = true;
-                        for (int i = 1; i < order.length; i++) horizontally &= order[i - 1].t == order[i].t;
+                        for (int i = 1; i < order.length; i++) horizontally &= U.eD(order[i - 1].t, order[i].t, 0.5);
                         logic.gatheredHorizontally.put(GIAT, horizontally);
                         logic.unzipGroup(GIAT, speeds[1], GROUND_TYPES);
                         logic.zipGroup(GFH, speeds[0], ARIAL_TYPES);
@@ -134,7 +123,7 @@ public final class MyStrategy implements Strategy {
                 case ORDER_ROTATION:
                     if (logic.sum(vu, ARIAL_TYPES).zero()) {
                         if (!logic.protectGround(GFH, GIAT)) {
-                            if (!restore()) {
+                            if (!logic.restore()) {
                                 logic.createGroupTIAFH(GFH, GIAT, GFHTAI);
                                 gameState = GameState.TACTICAL_EXECUTION_CHANGE;
                             }
@@ -142,11 +131,12 @@ public final class MyStrategy implements Strategy {
                     }
                     break;
                 case TACTICAL_EXECUTION:
+                    logic.setupUnitProduction();
                     Rectangle[] evR = logic.sOfVT(logic.eV(), FIGHTER, HELICOPTER, TANK);
                     if ((evR[0].square() / wordedSquare >= 0.5 || evR[1].square() / wordedSquare >= 0.5) && evR[2].square() / wordedSquare < 0.1) {
                         gameState = GameState.TACTICAL_EXECUTION_GROUPS;
                         groups = new HashSet<>(Arrays.asList(GFH, GIAT));
-                    } else if (evR[0].square() / wordedSquare < 0.15 && evR[1].square() / wordedSquare < 0.15) {
+                    } else  {
                         logic.protectGround(GFH, GIAT);
                         groups = new HashSet<>(Collections.singletonList(GFHTAI));
                         gameState = GameState.TACTICAL_EXECUTION_SINGLE;
@@ -162,14 +152,18 @@ public final class MyStrategy implements Strategy {
                     if (logic.sum(vu, VehicleType.values()).zero()) {
                         gameState = GameState.TACTICAL_EXECUTION;
                     } else return;
+                    break;
                 case TACTICAL_EXECUTION_SINGLE:
-                    evR = logic.sOfVT(logic.eV(), FIGHTER, HELICOPTER, TANK);
-                    if ((evR[0].square() / wordedSquare >= 0.5 || evR[1].square() / wordedSquare >= 0.5) && evR[2].square() / wordedSquare < 0.1)
-                        gameState = GameState.TACTICAL_EXECUTION;
-                    else
-                    if (restore() | logic.protectGround(GFH, GIAT)) {
-                        gameState = GameState.TACTICAL_EXECUTION_CHANGE;
-                        return;
+                    if (groupGameStateMap.get(GFHTAI) != GroupGameState.WAIT_COMMAND_FINISH) {
+                        if (logic.protectGround(GFH, GIAT) || logic.restore()) {
+                            Rectangle gR = logic.sOfVG(GIAT)[0];
+                            logic.makeGroupMove(GIAT, gR, gR.cX(), gR.cY(), 0, true);
+                            gameState = GameState.TACTICAL_EXECUTION_CHANGE;
+                            return;
+                        } else
+                            evR = logic.sOfVT(logic.eV(), FIGHTER, HELICOPTER, TANK);
+                        if (evR[0].square() / wordedSquare < 0.15 && evR[1].square() / wordedSquare < 0.15)
+                            gameState = GameState.TACTICAL_EXECUTION;
                     }
                     break;
             }
@@ -178,18 +172,20 @@ public final class MyStrategy implements Strategy {
                 GroupGameState groupGameState = groupGameStateMap.get(gid);
                 switch (groupGameState) {
                     case TACTICAL_EXECUTION:
-                        if (!logic.setupNuclearStrike(gid)) {
+                        logic.setupNuclearStrike(gid);
+                        if (!logic.defineRouteToNearestFactory(gid)) {
                             VehicleTick ep = logic.cEP(false, gid);
                             if (ep == null) return;
                             if (logic.myVehicleReadyAttack(gid) < 20) {
-                                Rectangle rectangle = logic.sOfVG(gid)[0];
+                                Rectangle  rectangle = logic.sOfVG(gid)[0];
                                 Line line = new Line(new P2D(ep.x(), ep.y()), new P2D(rectangle.cX(), rectangle.cY()));
-                                double angle = Line.angle(line, rectangle.sightLine());
-                                if (angle < PI/2 && rectangle.rotation(world.getWidth(), world.getHeight())) {
-                                    logic.rotateGroup(rectangle.g, -angle + PI/2 , rectangle.cX(), rectangle.cY(), rectangle.speed);
+                                double angle =  Line.angle(line, rectangle.sightLines()[0]);
+                                double angle2 =  Line.angle(line, rectangle.sightLines()[1]);
+                                if (Math.min(angle, angle2) > PI/8 && rectangle.rotation(world.getWidth(), world.getHeight())) {
+                                    logic.rotateGroup(rectangle.g, Math.min(angle, angle2) - PI/8 , rectangle.cX(), rectangle.cY(), rectangle.speed);
                                     groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
                                 } else {
-                                     if (!logic.makeTacticalGroupMove(gid, ep.x(), ep.y(), rectangle.speed,
+                                    if (!logic.makeTacticalGroupMove(gid, ep.x(), ep.y(), rectangle.speed,
                                             logic.sum(vu, groupTypesMap.get(gid)).value)) {
                                         groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
                                     }
@@ -209,8 +205,7 @@ public final class MyStrategy implements Strategy {
                         if (rectangle.intersects(nsRectangle)) {
                             rectangle.nsp = new P2D(x, y);
                             logic.updateNuclearStrikeGroupPoint(rectangle.g, rectangle);
-                            logic.makeGroupMove(rectangle.g, rectangle, rectangle.cX(), rectangle.cY(), 0, true);
-                            logic.scaleGroup(10, x, y, rectangle.speed, rectangle.g);
+                            logic.scaleGroup(10, x, y, 0, rectangle.g);
                             groupGameState = GroupGameState.NUCLEAR_STRIKE_RECOVERY;
                         } else {
                             logic.updateNuclearStrikeGroupPoint(rectangle.g, null);
@@ -222,8 +217,7 @@ public final class MyStrategy implements Strategy {
                             rectangle = logic.sOfVG(gid)[0];
                             Rectangle nsR = logic.nuclearStrikeGroupPoint(rectangle.g);
                             if (nsR != null) {
-                                logic.scaleGroup(nsR.square() / rectangle.square(), nsR.nsp.x, nsR.nsp.y,
-                                        rectangle.speed, rectangle.g);
+                                logic.scaleGroup(nsR.square()/rectangle.square(), nsR.nsp.x, nsR.nsp.y,0, rectangle.g);
                                 groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
                             } else {
                                 groupGameState = GroupGameState.TACTICAL_EXECUTION;

@@ -54,10 +54,10 @@ public class Rectangle implements Comparable<Rectangle> {
     
     P2D square(int i, int j) { return new P2D(l + j*58 + j*16 + 58/2, t + i*58 + i*16 + 58/2); }
     double side() {return max(P2D.distanceTo(new P2D(bx, by),new P2D(ax, ay)), P2D.distanceTo(new P2D(bx, by),new P2D(cx, cy))); }
-    Line sightLine() {
+    Line[] sightLines() {
         if (P2D.distanceTo(new P2D(bx, by), new P2D(ax, ay)) > P2D.distanceTo(new P2D(bx, by),new P2D(cx, cy)))
-            return new Line(new P2D((ax+bx)/2, (ay+by)/2), c());
-        else return new Line(new P2D((bx+cx)/2, (by+cy)/2), c());
+            return new Line[]{new Line(new P2D((ax+bx)/2, (ay+by)/2), c()), new Line(c(), new P2D((ax+bx)/2, (ay+by)/2))};
+        else return new Line[]{new Line(new P2D((bx+cx)/2, (by+cy)/2), c()), new Line(c(), new P2D((bx+cx)/2, (by+cy)/2))};
     }
     P2D[] points() { return new P2D[]{new P2D(ax, ay), new P2D(bx, by), new P2D(cx, cy), new P2D(dx, dy)}; }
     boolean rotation(double width, double height) {
@@ -113,8 +113,7 @@ public class Rectangle implements Comparable<Rectangle> {
         double range = Double.MAX_VALUE;
         Set<VehicleType> vts = new HashSet<>();
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(int g) {
             this.g = g;
@@ -124,18 +123,17 @@ public class Rectangle implements Comparable<Rectangle> {
             this.vt = vt;
         }
 
-        public Builder(Rectangle rectangle) {
-            this.vt = rectangle.vt;
-            this.g = rectangle.g;
-            this.angle = rectangle.angle;
-            this.ax = rectangle.ax;
-            this.ay = rectangle.ay;
-            this.cx = rectangle.cx;
-            this.cy = rectangle.cy;
-            this.by = rectangle.by;
-            this.bx = rectangle.bx;
-            this.dy = rectangle.dy;
-            this.dx = rectangle.dx;
+        public Builder(Rectangle rect) {
+            this.vt = rect.vt;
+            this.g = rect.g;
+            this.ax = rect.ax;
+            this.ay = rect.ay;
+            this.cx = rect.cx;
+            this.cy = rect.cy;
+            this.by = rect.by;
+            this.bx = rect.bx;
+            this.dy = rect.dy;
+            this.dx = rect.dx;
         }
 
         Builder update(VehicleTick v) {
@@ -153,49 +151,53 @@ public class Rectangle implements Comparable<Rectangle> {
             return update(v.getX(), v.getY(), v.getRadius());
         }
 
+        Builder combine(Rectangle rectangle) {
+            return combine(new Builder(rectangle));
+        }
+
         Builder update(double x, double y, double range) {
             double xMr = x - range;
             double xPr = x + range;
             double yMr = y - range;
             double yPr = y + range;
 
-            if (ax > xMr || U.eD(ax, xMr) && ay > yMr) {
+            //red
+            if (ax > xMr || U.eD(ax, xMr, 0.01 ) && ay > yMr) {
                 ax = xMr;
                 ay = yMr;
             }
-            if (by > yMr || U.eD(by, yMr) && bx < xPr ) {
+            // black
+            if (by > yMr || U.eD(by, yMr, 0.01) && bx < xPr) {
                 by = yMr;
                 bx = xPr;
             }
-            if (cx < xPr || U.eD(cx, xPr) && cy < yPr) {
+            // blue
+            if (cx < xPr || U.eD(cx, xPr, 0.01) && cy < yPr) {
                 cx = xPr;
                 cy = yPr;
             }
-            if (dy < yPr || U.eD(dy, yPr) && dx > xMr) {
+            // orange
+            if (dy < yPr || U.eD(dy, yPr, 0.01) && dx > xMr) {
                 dy = yPr;
                 dx = xMr;
             }
             return this;
         }
 
-        Builder combine(Rectangle rectangle) {
-            return combine(new Builder(rectangle));
-        }
-
         Builder combine(Builder builder) {
-            if (ax > builder.ax) {
+            if (ax > builder.ax || U.eD(ax, builder.ax, 0.01) && builder.ax < ax) {
                 ax = builder.ax;
                 ay = builder.ay;
             }
-            if (cx < builder.cx) {
+            if (cx < builder.cx || U.eD(cx, builder.cx, 0.01) && builder.cy < cy) {
                 cx = builder.cx;
                 cy = builder.cy;
             }
-            if (by > builder.by) {
+            if (by > builder.by || U.eD(by, builder.by, 0.01) && builder.bx > bx) {
                 by = builder.by;
                 bx = builder.bx;
             }
-            if (dy < builder.dy) {
+            if (dy < builder.dy || U.eD(dy, builder.dy, 0.01) && builder.dx > dx) {
                 dy = builder.dy;
                 dx = builder.dx;
             }

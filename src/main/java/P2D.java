@@ -74,8 +74,8 @@ public class P2D implements Comparable<P2D> {
     }
 
     int[] inWorld(World world) {
-        return new int[]{(int) StrictMath.floor(StrictMath.min(world.getWidth()/U.PALE_SIDE - 1, x/U.PALE_SIDE)),
-                (int) StrictMath.floor(StrictMath.min(world.getHeight()/U.PALE_SIDE - 1, y/U.PALE_SIDE))};
+        return new int[]{(int) StrictMath.floor(StrictMath.min(world.getWidth()/U.PALE_SIDE, x/U.PALE_SIDE)),
+                (int) StrictMath.floor(StrictMath.min(world.getHeight()/U.PALE_SIDE, y/U.PALE_SIDE))};
     }
 
     P2D add(double radius) {
