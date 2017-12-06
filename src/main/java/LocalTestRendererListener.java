@@ -1,8 +1,7 @@
 import model.*;
 
 import java.awt.*;
-import java.util.Arrays;
-import java.util.Comparator;
+import java.util.*;
 import java.util.stream.Stream;
 
 import static java.lang.StrictMath.*;
@@ -25,12 +24,84 @@ public final class LocalTestRendererListener {
     private Player enemy;
     WeatherType[][] weatherTypes;
     TerrainType[][] terrainTypes;
+    Map<Long, FacilityPoint> facilitiesPoint;
+    Map<Long, Facility> facilityMap = new HashMap<>();
+
+    static double stepsCost(Stack<FactoriesRoute.N> steps) {
+        double cost = 0;
+        for (FactoriesRoute.N step : steps) {
+            cost += step.cost;
+        }
+        return cost;
+    }
+
+    static class FacilityPoint {
+        long facilityRouteTo;
+        Map<Long, Stack<FactoriesRoute.N>> facilities = new HashMap<>();
+
+        void build(Map<Long, FacilityPoint> facilitiesPoint) {
+            double minCost = Double.MAX_VALUE;
+            for (Long id : facilities.keySet()) {
+                Stack<FactoriesRoute.N> route = facilities.get(id);
+                double routeCost = stepsCost(route);
+                if (minCost > routeCost && facilitiesPoint.get(id) == null) {
+                    minCost = routeCost;
+                    facilityRouteTo = id;
+                }
+            }
+        }
+        Stack<FactoriesRoute.N> pathToNext() {
+            return facilities.get(facilityRouteTo);
+        }
+    }
 
     public void beforeDrawScene(Graphics graphics, World world, Game game, int canvasWidth, int canvasHeight,
                                 double left, double top, double width, double height) {
         updateFields(graphics, world, game, canvasWidth, canvasHeight, left, top, width, height);
         Color color = graphics.getColor();
+        Facility[] facilities = world.getFacilities();
         try {
+            for (int i = 0; i < facilities.length; i++) {
+                facilityMap.put(facilities[i].getId(), facilities[i]);
+            }
+            if (facilitiesPoint == null) {
+                facilitiesPoint = new HashMap<>();
+                double[][] worldSpeedFactors = new double[(int)(world.getHeight()/U.PALE_SIDE)][(int)(world.getWidth()/U.PALE_SIDE)];
+                for (int i = 0; i < worldSpeedFactors.length; i++) {
+                    for (int j = 0; j < worldSpeedFactors[i].length; j++) {
+                        worldSpeedFactors[i][j] = game.getPlainTerrainSpeedFactor() - tSf(game, terrainTypes[i][j]);
+                    }
+                }
+                for (int i = 0; i < facilities.length; i++) {
+                    Facility from = facilities[i];
+                    int[] fij = new P2D(from.getLeft() + 32, from.getTop() + 32).inWorld(world);
+                    FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, fij[0], fij[1]);
+                    FacilityPoint point = new FacilityPoint();
+                    for (int j = 0; j < facilities.length; j++) {
+                        if (j == i) continue;
+                        Facility to = facilities[j];
+                        int[] tij = new P2D(to.getLeft() + 32, to.getTop() + 32).inWorld(world);
+                        point.facilities.put(to.getId(), route.pathTo(tij[0], tij[1]));
+                    }
+                    point.build(facilitiesPoint);
+                    if (point.facilityRouteTo == 0) point.facilityRouteTo = facilities[0].getId();
+                    facilitiesPoint.put(from.getId(), point);
+                }
+            }
+            int i = 0;
+            for (FacilityPoint facilityPoint : facilitiesPoint.values()) {
+                Iterator<FactoriesRoute.N> it = facilityPoint.pathToNext().iterator();
+                FactoriesRoute.N from = it.next();
+                P2D fromP = new P2D(from.x * U.PALE_SIDE, from.y * U.PALE_SIDE);
+                graphics.drawChars((i + "").toCharArray(), 0, (i + "").length(), (int)fromP.x, (int)fromP.y);
+                i++;
+                while (it.hasNext()) {
+                    FactoriesRoute.N to = it.next();
+                    P2D dst = new P2D(to.x * U.PALE_SIDE, to.y * U.PALE_SIDE);
+                    drawLine(fromP, dst);
+                    fromP = dst;
+                }
+            }
             vehicles = world.getVehicles();
             drawCircle(new P2D(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY()), 10);
             graphics.setColor(Color.RED);
@@ -38,16 +109,18 @@ public final class LocalTestRendererListener {
             drawCircle(vehicle, 10);
             Rect fr = OfVG(FIGHTER);
             drawRect(fr);
+            graphics.setColor(Color.RED);
             drawLine(vehicle.getX(), vehicle.getY(), fr.cX(), fr.cY());
-            Line line = fr.sideW();
+            Line line = fr.sightLine();
             drawLine(line.ps[0].x, line.ps[0].y, line.ps[1].x, line.ps[1].y);
-            graphics.setColor(Color.BLACK);
+            graphics.setColor(  Color.BLACK);
             Vehicle vARRV = cEP(false, ARRV);
             drawCircle(vARRV, 10);
             Rect ar = OfVG(ARRV);
             drawRect(ar);
             drawLine(vARRV.getX(), vARRV.getY(), ar.cX(), ar.cY());
-            Line aline = ar.sideW();
+            graphics.setColor(Color.BLACK);
+            Line aline = ar.sightLine();
             drawLine(aline.ps[0].x, aline.ps[0].y, aline.ps[1].x, aline.ps[1].y);
             mkNS(graphics);
         } catch (Throwable t) {
@@ -286,6 +359,10 @@ public final class LocalTestRendererListener {
             builder.combine(new Rect.Builder(rects[i]));
         }
         return builder.build();
+    }
+
+    private void drawLine(P2D a, P2D b) {
+        drawLine(a.x, a.y, b.x, b.y);
     }
 
     private void drawLine(double x1, double y1, double x2, double y2) {

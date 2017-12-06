@@ -3,7 +3,6 @@ import model.*;
 import java.util.*;
 
 import static java.lang.Math.PI;
-import static model.ActionType.CLEAR_AND_SELECT;
 import static model.VehicleType.*;
 
 public final class MyStrategy implements Strategy {
@@ -65,7 +64,7 @@ public final class MyStrategy implements Strategy {
                     groupGameStateMap.put(GFHTAI, GroupGameState.TACTICAL_EXECUTION);
                     break;
                 case ORDER_POSITIONING:
-                    boolean arial = false, ground = false;
+                    boolean arial = false, ground = true;
                     if (logic.sum(vu, ARIAL_TYPES).zero()) {
                         if (logic.vehicleTypeStateMap.get(FIGHTER) == VehicleTypeState.MOVING) {
                             ars = logic.sOfVT(ARIAL_TYPES);
@@ -78,12 +77,12 @@ public final class MyStrategy implements Strategy {
                             arial = logic.gatherAG(5, ggs, 0, rectangles);
                         }
                     }
-                    if (logic.sum(vu, GROUND_TYPES).zero()) {
-                        nextMove = logic.positioningMoves.poll();
-                        if (nextMove == null) ground = true;
-                        if (move.getAction() == CLEAR_AND_SELECT)
-                            logic.addNextMove(logic.positioningMoves.poll());
-                    }
+//                    if (logic.sum(vu, GROUND_TYPES).zero()) {
+//                        nextMove = logic.positioningMoves.poll();
+//                        if (nextMove == null) ground = true;
+//                        if (move.getAction() == CLEAR_AND_SELECT)
+//                            logic.addNextMove(logic.positioningMoves.poll());
+//                    }
                     if (arial && ground) {
                         double[] speeds = logic.minVehicleSpeed(GFH, GIAT);
                         Rectangle[] order = logic.sOfVT(GROUND_TYPES);
@@ -91,7 +90,7 @@ public final class MyStrategy implements Strategy {
                         boolean horizontally = true;
                         for (int i = 1; i < order.length; i++) horizontally &= U.eD(order[i - 1].t, order[i].t, 0.5);
                         logic.gatheredHorizontally.put(GIAT, horizontally);
-                        logic.unzipGroup(GIAT, speeds[1], GROUND_TYPES);
+                        //logic.unzipGroup(GIAT, speeds[1], GROUND_TYPES);
                         logic.zipGroup(GFH, speeds[0], ARIAL_TYPES);
                         gameState = GameState.ORDER_SCALING;
                     }
@@ -109,26 +108,26 @@ public final class MyStrategy implements Strategy {
                     }
                     break;
                 case ORDER_GROUPING:
-                    boolean one = false, zero = false;
-                    if (logic.sum(vu, ARIAL_TYPES).zero()) logic.protectGround(GFH, GIAT);
-                    Map<VehicleType, Rectangle> typeR = logic.mOfVT(GROUND_TYPES);
-                    if (logic.sum(vu, logic.mainOrder[0]).zero())
-                        one = logic.gatherAG(4.5, ggs, 1, typeR.get(logic.mainOrder[0]), typeR.get(logic.mainOrder[1]));
-                    if (logic.sum(vu, logic.mainOrder[2]).zero()) zero =
-                            logic.gatherAG(-4.5, ggs, 2, typeR.get(logic.mainOrder[2]), typeR.get(logic.mainOrder[1]));
-                    if (one && zero) {
+//                    boolean one = false, zero = false;
+//                    if (logic.sum(vu, ARIAL_TYPES).zero()) logic.protectGround(GFH, GIAT);
+//                    Map<VehicleType, Rectangle> typeR = logic.mOfVT(GROUND_TYPES);
+//                    if (logic.sum(vu, logic.mainOrder[0]).zero())
+//                        one = logic.gatherAG(4.5, ggs, 1, typeR.get(logic.mainOrder[0]), typeR.get(logic.mainOrder[1]));
+//                    if (logic.sum(vu, logic.mainOrder[2]).zero()) zero =
+//                            logic.gatherAG(-4.5, ggs, 2, typeR.get(logic.mainOrder[2]), typeR.get(logic.mainOrder[1]));
+//                    if (one && zero) {
                         gameState = GameState.ORDER_ROTATION;
-                    }
+//                    }
                     break;
                 case ORDER_ROTATION:
-                    if (logic.sum(vu, ARIAL_TYPES).zero()) {
-                        if (!logic.protectGround(GFH, GIAT)) {
-                            if (!logic.restore()) {
-                                logic.createGroupTIAFH(GFH, GIAT, GFHTAI);
+//                    if (logic.sum(vu, ARIAL_TYPES).zero()) {
+//                        if (!logic.protectGround(GFH, GIAT)) {
+//                            if (!logic.restore()) {
+//                                logic.createGroupTIAFH(GFH, GIAT, GFHTAI);
                                 gameState = GameState.TACTICAL_EXECUTION_CHANGE;
-                            }
-                        }
-                    }
+//                            }
+//                        }
+//                    }
                     break;
                 case TACTICAL_EXECUTION:
                     logic.setupUnitProduction();
@@ -137,8 +136,8 @@ public final class MyStrategy implements Strategy {
                         gameState = GameState.TACTICAL_EXECUTION_GROUPS;
                         groups = new HashSet<>(Arrays.asList(GFH, GIAT));
                     } else  {
-                        logic.protectGround(GFH, GIAT);
-                        groups = new HashSet<>(Collections.singletonList(GFHTAI));
+                        groups = new HashSet<>(Collections.singletonList(GFH));
+                        //groups = new HashSet<>(Collections.singletonList(GFHTAI));
                         gameState = GameState.TACTICAL_EXECUTION_SINGLE;
                     }
                     break;
@@ -155,15 +154,15 @@ public final class MyStrategy implements Strategy {
                     break;
                 case TACTICAL_EXECUTION_SINGLE:
                     if (groupGameStateMap.get(GFHTAI) != GroupGameState.WAIT_COMMAND_FINISH) {
-                        if (logic.protectGround(GFH, GIAT) || logic.restore()) {
-                            Rectangle gR = logic.sOfVG(GIAT)[0];
-                            logic.makeGroupMove(GIAT, gR, gR.cX(), gR.cY(), 0, true);
-                            gameState = GameState.TACTICAL_EXECUTION_CHANGE;
-                            return;
-                        } else
-                            evR = logic.sOfVT(logic.eV(), FIGHTER, HELICOPTER, TANK);
-                        if (evR[0].square() / wordedSquare < 0.15 && evR[1].square() / wordedSquare < 0.15)
-                            gameState = GameState.TACTICAL_EXECUTION;
+                        //if (logic.protectGround(GFH, GIAT) || logic.restore()) {
+//                            Rectangle gR = logic.sOfVG(GIAT)[0];
+//                            logic.makeGroupMove(GIAT, gR, gR.cX(), gR.cY(), 0, true);
+//                            gameState = GameState.TACTICAL_EXECUTION_CHANGE;
+//                            return;
+//                        } else
+//                            evR = logic.sOfVT(logic.eV(), FIGHTER, HELICOPTER, TANK);
+//                        if (evR[0].square() / wordedSquare < 0.15 && evR[1].square() / wordedSquare < 0.15)
+//                            gameState = GameState.TACTICAL_EXECUTION;
                     }
                     break;
             }
@@ -173,7 +172,8 @@ public final class MyStrategy implements Strategy {
                 switch (groupGameState) {
                     case TACTICAL_EXECUTION:
                         logic.setupNuclearStrike(gid);
-                        if (!logic.defineRouteToNearestFactory(gid)) {
+                        int captured = logic.captureNearestFactory(gid);
+                        if (captured >= 0) {
                             VehicleTick ep = logic.cEP(false, gid);
                             if (ep == null) return;
                             if (logic.myVehicleReadyAttack(gid) < 20) {

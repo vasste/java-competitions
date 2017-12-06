@@ -13,19 +13,16 @@ public class FactoriesRoute {
     public double[][] edges;
 
     public FactoriesRoute(double[][] worldSpeedFactor, int sx, int sy) {
-        int titles = width * height;
         this.width = 32;
         this.height = 32;
+        int titles = width * height;
         edges = new double[width * height][width * height];
         for (int i = 0; i < width * height; i++) {
             for (int j = 0; j < width * height; j++) {
                 int jy = j/width;
-                int jx = j - j/width;
+                int jx = j - jy*width;
                 edges[i][j] = worldSpeedFactor[jx][jy];
             }
-        }
-        for (double[] edge : edges) {
-            Arrays.fill(edge, 1);
         }
         distTo = new double[titles];
         edgeTo = new N[titles];
@@ -89,7 +86,7 @@ public class FactoriesRoute {
     }
 
     static class N implements Comparable<N> {
-        int x, y, i;
+        int x, y;
         double cost;
 
         public N(int x, int y, double cost) {

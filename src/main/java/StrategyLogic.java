@@ -86,36 +86,56 @@ public class StrategyLogic {
         }
     }
 
-    boolean defineRouteToNearestFactory(int gid) {
-        if (facilityMap.isEmpty()) return false;
+    int captureNearestFactory(int gid) {
+        if (facilityMap.isEmpty()) return 0;
 
-        Rectangle  rectangle = sOfVG(gid)[0];
+        Rectangle rectangle = sOfVG(gid)[0];
         int[] ij = rectangle.c().inWorld(world);
-        FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, ij[0], ij[1]);
-        double minStepsCost = Double.MAX_VALUE;
+
+        Facility overFacility = null;
+        for (Facility facility : facilityMap.values()) {
+            Rectangle facilityRectangle = new Rectangle(facility.getLeft(), facility.getTop(), facility.getLeft() + 64, facility.getTop() + 64);
+            if (rectangle.intersects(facilityRectangle)) {
+                overFacility = facility;
+                if (facility.getOwnerPlayerId() == me.getId()) {
+                    break;
+                } else {
+                    return -1;
+                }
+            }
+        }
+
         Stack<FactoriesRoute.N> minRoute = null;
-        for (Facility to : facilityMap.values()) {
-            int[] fij = new P2D(to.getLeft() + 32, to.getTop() + 32).inWorld(world);
-            Stack<FactoriesRoute.N> steps = route.pathTo(fij[0], fij[0]);
-            double cost = stepsCost(steps);
-            if (minStepsCost > cost) {
-                minStepsCost = cost;
-                minRoute = steps;
+        if (overFacility != null) {
+            minRoute = facilitiesPoint.get(overFacility.getId()).pathToNext();
+        } else {
+            FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, ij[0], ij[1]);
+            double minStepsCost = Double.MAX_VALUE;
+            for (Facility to : facilityMap.values()) {
+                if (to.getOwnerPlayerId() == me.getId()) continue;
+                int[] fij = new P2D(to.getLeft() + 32, to.getTop() + 32).inWorld(world);
+                Stack<FactoriesRoute.N> steps = route.pathTo(fij[0], fij[0]);
+                double cost = stepsCost(steps);
+                if (minStepsCost > cost) {
+                    minStepsCost = cost;
+                    minRoute = steps;
+                }
             }
         }
 
         if (minRoute != null) {
             FactoriesRoute.N from = minRoute.pop();
+            moves.add(MoveBuilder.c(ActionType.CLEAR_AND_SELECT).group(gid));
             P2D fromP = new P2D(from.x * U.PALE_SIDE, from.y * U.PALE_SIDE);
+            moves.add(MoveBuilder.c(ActionType.MOVE).dfCToXY(rectangle, fromP.x, fromP.y));
             for (FactoriesRoute.N to : minRoute) {
                 moves.add(MoveBuilder.c(ActionType.CLEAR_AND_SELECT).group(gid));
                 P2D dst = new P2D(to.x * U.PALE_SIDE, to.y * U.PALE_SIDE);
                 moves.add(MoveBuilder.c(ActionType.MOVE).dfCToXY(fromP, dst.x, dst.y));
                 fromP = dst;
             }
-            return true;
         }
-        return false;
+        return 1;
     }
 
     static double stepsCost(Stack<FactoriesRoute.N> steps) {
@@ -530,6 +550,10 @@ public class StrategyLogic {
                     facilityRouteTo = id;
                 }
             }
+        }
+
+        Stack<FactoriesRoute.N> pathToNext() {
+            return facilities.get(facilityRouteTo);
         }
     }
 }
