@@ -1,3 +1,4 @@
+import model.Facility;
 import model.Unit;
 import model.Vehicle;
 import model.World;
@@ -56,6 +57,11 @@ public class P2D implements Comparable<P2D> {
         this.id = vehicle.v.getId();
     }
 
+    P2D(Facility facility) {
+        this.x = facility.getLeft() + U.PALE_SIDE;
+        this.y = facility.getTop() + U.PALE_SIDE;
+    }
+
     @Override
     public int compareTo(P2D o) {
         int is = U.cD(speed,o.speed);
@@ -73,9 +79,9 @@ public class P2D implements Comparable<P2D> {
         return "(" + round(x) + "," + round(y) + ")";
     }
 
-    int[] inWorld(World world) {
-        return new int[]{(int) StrictMath.floor(StrictMath.min(world.getWidth()/U.PALE_SIDE, x/U.PALE_SIDE)),
-                (int) StrictMath.floor(StrictMath.min(world.getHeight()/U.PALE_SIDE, y/U.PALE_SIDE))};
+    int[] inWorld(World world, int factor) {
+        return new int[]{(int) StrictMath.floor(StrictMath.min(world.getWidth()/U.PALE_SIDE/factor, x/U.PALE_SIDE/factor)),
+                (int) StrictMath.floor(StrictMath.min(world.getHeight()/U.PALE_SIDE/factor, y/U.PALE_SIDE/factor))};
     }
 
     P2D add(double radius) {

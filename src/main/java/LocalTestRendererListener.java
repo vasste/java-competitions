@@ -1,11 +1,16 @@
 import model.*;
 
 import java.awt.*;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Stream;
 
 import static java.lang.StrictMath.*;
-import static model.VehicleType.*;
+import static model.VehicleType.FIGHTER;
+import static model.VehicleType.HELICOPTER;
 
 public final class LocalTestRendererListener {
     private Graphics graphics;
@@ -26,6 +31,12 @@ public final class LocalTestRendererListener {
     TerrainType[][] terrainTypes;
     Map<Long, FacilityPoint> facilitiesPoint;
     Map<Long, Facility> facilityMap = new HashMap<>();
+    BufferedWriter log;
+    long facilityIdStart;
+
+    public LocalTestRendererListener() throws IOException {
+        log = new BufferedWriter(new FileWriter(new File("log.txt")));
+    }
 
     static double stepsCost(Stack<FactoriesRoute.N> steps) {
         double cost = 0;
@@ -36,22 +47,47 @@ public final class LocalTestRendererListener {
     }
 
     static class FacilityPoint {
+        long facilityRouteFrom;
         long facilityRouteTo;
         Map<Long, Stack<FactoriesRoute.N>> facilities = new HashMap<>();
 
-        void build(Map<Long, FacilityPoint> facilitiesPoint) {
+        void build(long fid, Map<Long, FacilityPoint> facilitiesPoint) {
+            facilityRouteFrom = fid;
             double minCost = Double.MAX_VALUE;
             for (Long id : facilities.keySet()) {
                 Stack<FactoriesRoute.N> route = facilities.get(id);
                 double routeCost = stepsCost(route);
-                if (minCost > routeCost && facilitiesPoint.get(id) == null) {
+                if (minCost > routeCost && !facilitiesPoint.containsKey(id)) {
                     minCost = routeCost;
                     facilityRouteTo = id;
                 }
             }
         }
         Stack<FactoriesRoute.N> pathToNext() {
-            return facilities.get(facilityRouteTo);
+            Stack<FactoriesRoute.N> path = new Stack<>();
+            Stack<FactoriesRoute.N> ns = facilities.get(facilityRouteTo);
+            for (FactoriesRoute.N n : ns) {
+                path.push(n);
+            }
+             return path;
+        }
+
+        @Override
+        public String toString() {
+            return "FP{"+ "f=" + facilityRouteFrom + ", " + "t=" + facilityRouteTo + "}";
+        }
+    }
+
+    void closeToFacility(Rect rect, int[] fij, int width, int height) {
+        for (int i = fij[0] - 1; i >= fij[0] + 1; i++) {
+            for (int j = fij[1] - 1; j >= fij[1] + 1; j++) {
+                if (i >= height || i < 0 || j < 0 || j >= width) continue;
+                if (rect.include(2 * i * U.PALE_SIDE, 2 * j * U.PALE_SIDE)) {
+                    fij[0] = i;
+                    fij[1] = j;
+                    return;
+                }
+            }
         }
     }
 
@@ -64,67 +100,101 @@ public final class LocalTestRendererListener {
             for (int i = 0; i < facilities.length; i++) {
                 facilityMap.put(facilities[i].getId(), facilities[i]);
             }
+            int factor = 2;
             if (facilitiesPoint == null) {
+                P2D zero = new P2D(0, 0);
+                Arrays.sort(facilities, (o1, o2) -> Double.compare(P2D.distanceTo(new P2D(o1.getLeft(), o1.getTop()), zero), P2D.distanceTo(new P2D(o2.getLeft(), o2.getTop()), zero)));
+                facilityIdStart = facilities[0].getId();
                 facilitiesPoint = new HashMap<>();
-                double[][] worldSpeedFactors = new double[(int)(world.getHeight()/U.PALE_SIDE)][(int)(world.getWidth()/U.PALE_SIDE)];
-                for (int i = 0; i < worldSpeedFactors.length; i++) {
-                    for (int j = 0; j < worldSpeedFactors[i].length; j++) {
-                        worldSpeedFactors[i][j] = game.getPlainTerrainSpeedFactor() - tSf(game, terrainTypes[i][j]);
+                double[][] worldSpeedFactors = new double[(int)(world.getHeight()/U.PALE_SIDE)/2][(int)(world.getWidth()/U.PALE_SIDE)/2];
+                for (int i = 0; i < worldSpeedFactors.length * 2; i++) {
+                    for (int j = 0; j < worldSpeedFactors.length * 2; j++) {
+                        worldSpeedFactors[i/2][j/2] = Math.max(worldSpeedFactors[i/2][j/2], 2 - tSf(game, terrainTypes[i][j]));
                     }
                 }
-                for (int i = 0; i < facilities.length; i++) {
-                    Facility from = facilities[i];
-                    int[] fij = new P2D(from.getLeft() + 32, from.getTop() + 32).inWorld(world);
-                    FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, fij[0], fij[1]);
+                Facility from = facilities[0];
+                do {
+                    int[] fij = new P2D(from.getLeft(), from.getTop()).inWorld(world, factor);
+                    FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, fij[0], fij[1], U.PALE_SIDE/factor, U.PALE_SIDE/factor);
                     FacilityPoint point = new FacilityPoint();
-                    for (int j = 0; j < facilities.length; j++) {
-                        if (j == i) continue;
-                        Facility to = facilities[j];
-                        int[] tij = new P2D(to.getLeft() + 32, to.getTop() + 32).inWorld(world);
-                        point.facilities.put(to.getId(), route.pathTo(tij[0], tij[1]));
+                    for (Facility to : facilities) {
+                        if (to.getId() == from.getId()) continue;
+                        int[] tij = new P2D(to.getLeft(), to.getTop()).inWorld(world, factor);
+                        point.facilities.put(to.getId(), route.pathTo(tij[0], tij[1], worldSpeedFactors[tij[0]][tij[1]]));
                     }
-                    point.build(facilitiesPoint);
-                    if (point.facilityRouteTo == 0) point.facilityRouteTo = facilities[0].getId();
+                    point.build(from.getId(), facilitiesPoint);
                     facilitiesPoint.put(from.getId(), point);
-                }
+                    if (point.facilityRouteTo == 0) point.facilityRouteTo = facilityIdStart;
+                    from = facilityMap.get(point.facilityRouteTo);
+                } while(from.getId() != facilityIdStart);
+
+                log.write(facilitiesPoint.values() + "");
+                log.flush();
             }
-            int i = 0;
-            for (FacilityPoint facilityPoint : facilitiesPoint.values()) {
-                Iterator<FactoriesRoute.N> it = facilityPoint.pathToNext().iterator();
-                FactoriesRoute.N from = it.next();
-                P2D fromP = new P2D(from.x * U.PALE_SIDE, from.y * U.PALE_SIDE);
-                graphics.drawChars((i + "").toCharArray(), 0, (i + "").length(), (int)fromP.x, (int)fromP.y);
-                i++;
-                while (it.hasNext()) {
-                    FactoriesRoute.N to = it.next();
-                    P2D dst = new P2D(to.x * U.PALE_SIDE, to.y * U.PALE_SIDE);
+         //   int i = 0;
+//            Facility facility = facilityMap.get(id);
+//            int[] fij = new P2D(facility.getLeft(), facility.getTop()).inWorld(world, 2);
+//            Rect rect = new Rect(facility);
+//                graphics.setColor(Color.GREEN);
+//                drawRect(rect);
+//                graphics.setColor(Color.RED);
+//                P2D fP = new P2D(2*fij[0] * U.PALE_SIDE, 2*fij[1] * U.PALE_SIDE);
+//                drawRect(new Rect(fP.x, fP.y, fP.y + 64, fP.x + 64));
+//            graphics.setColor(Color.RED);
+//            closeToFacility(rect, fij, 16, 16);
+//            P2D fP = new P2D(2*fij[0] * U.PALE_SIDE, 2*fij[1] * U.PALE_SIDE);
+//            drawRect(new Rect(fP.x, fP.y, fP.y + 64, fP.x + 64));
+
+            graphics.setColor(Color.YELLOW);
+            for (int k = 0; k < 16; k++) {
+                drawLine(0, k * U.PALE_SIDE * factor, 1024, k * U.PALE_SIDE * factor);
+                drawLine(k * U.PALE_SIDE * factor, 0, k * U.PALE_SIDE * factor, 1024);
+            }
+
+            FacilityPoint facilityPoint = facilitiesPoint.get(facilityIdStart);
+            graphics.setFont(graphics.getFont().deriveFont(Font.BOLD));
+            do {
+
+                Stack<FactoriesRoute.N> path = facilityPoint.pathToNext();
+                FactoriesRoute.N from = path.pop();
+                graphics.setColor(Color.BLACK);
+                P2D fromP = new P2D(factor * from.x * U.PALE_SIDE, factor * from.y * U.PALE_SIDE);
+                drawRect(new Rect(fromP.x, fromP.y, fromP.y + U.PALE_SIDE * factor, fromP.x + U.PALE_SIDE * factor));
+                fromP = new P2D(factor * from.x * U.PALE_SIDE + U.PALE_SIDE * factor/2, factor * from.y * U.PALE_SIDE + U.PALE_SIDE * factor/2);
+                Point2I pt = toCanvasPosition(fromP.x, fromP.y);
+                graphics.drawChars((facilityPoint.facilityRouteFrom + "").toCharArray(), 0, (facilityPoint.facilityRouteFrom + "").length(), pt.x, pt.y);
+                graphics.setColor(Color.RED);
+                while (!path.isEmpty()) {
+                    FactoriesRoute.N to = path.pop();
+                    P2D dst = new P2D(factor * to.x * U.PALE_SIDE + U.PALE_SIDE * factor/2,
+                            factor * to.y * U.PALE_SIDE + U.PALE_SIDE * factor/2);
                     drawLine(fromP, dst);
                     fromP = dst;
                 }
-            }
+                facilityPoint = facilitiesPoint.get(facilityPoint.facilityRouteTo);
+            } while (facilityPoint.facilityRouteTo != facilityIdStart);
             vehicles = world.getVehicles();
-            drawCircle(new P2D(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY()), 10);
-            graphics.setColor(Color.RED);
-            Vehicle vehicle = cEP(true, FIGHTER);
-            drawCircle(vehicle, 10);
+//            drawCircle(new P2D(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY()), 10);
+//            graphics.setColor(Color.RED);
+            graphics.setColor(Color.BLACK);
             Rect fr = OfVG(FIGHTER);
             drawRect(fr);
-            graphics.setColor(Color.RED);
-            drawLine(vehicle.getX(), vehicle.getY(), fr.cX(), fr.cY());
-            Line line = fr.sightLine();
-            drawLine(line.ps[0].x, line.ps[0].y, line.ps[1].x, line.ps[1].y);
-            graphics.setColor(  Color.BLACK);
-            Vehicle vARRV = cEP(false, ARRV);
-            drawCircle(vARRV, 10);
-            Rect ar = OfVG(ARRV);
-            drawRect(ar);
-            drawLine(vARRV.getX(), vARRV.getY(), ar.cX(), ar.cY());
-            graphics.setColor(Color.BLACK);
-            Line aline = ar.sightLine();
-            drawLine(aline.ps[0].x, aline.ps[0].y, aline.ps[1].x, aline.ps[1].y);
-            mkNS(graphics);
+//            graphics.setColor(Color.RED);
+//            drawLine(vehicle.getX(), vehicle.getY(), fr.cX(), fr.cY());
+//            Line line = fr.sightLine();
+//            drawLine(line.ps[0].x, line.ps[0].y, line.ps[1].x, line.ps[1].y);
+//            graphics.setColor(  Color.BLACK);
+//            Vehicle vARRV = cEP(false, ARRV);
+//            drawCircle(vARRV, 10);
+//            Rect ar = OfVG(ARRV);
+//            drawRect(ar);
+//            drawLine(vARRV.getX(), vARRV.getY(), ar.cX(), ar.cY());
+//            graphics.setColor(Color.BLACK);
+//            Line aline = ar.sightLine();
+//            drawLine(aline.ps[0].x, aline.ps[0].y, aline.ps[1].x, aline.ps[1].y);
+//            mkNS(graphics);
         } catch (Throwable t) {
-            System.out.printf(t.getMessage());
+             System.out.printf(t.getMessage());
         }
         graphics.setColor(color);
     }
@@ -227,15 +297,15 @@ public final class LocalTestRendererListener {
     };
 
     static Rect see(Vehicle v, Game game, World world, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
-        int[] wij = new P2D(v).inWorld(world);
+        int[] wij = new P2D(v).inWorld(world, 1);
         double vF = v.isAerial() ? wVf(game, weatherTypes[wij[0]][wij[1]]): tVf(game, terrainTypes[wij[0]][wij[1]]);
         double visionRange = v.getVisionRange() * vF;
         return new Rect(v.getX(), v.getY(), world, visionRange);
     }
 
     static boolean see(Vehicle v, Vehicle u, World world, Game game, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
-        int[] wij = new P2D(v).inWorld(world);
-        int[] uij = new P2D(u).inWorld(world);
+        int[] wij = new P2D(v).inWorld(world, 1);
+        int[] uij = new P2D(u).inWorld(world, 1);
         double shF = u.isAerial() ? wShf(game, weatherTypes[uij[0]][uij[1]]) : tShf(game, terrainTypes[uij[0]][uij[1]]);
         double vF = v.isAerial() ? wVf(game, weatherTypes[wij[0]][wij[1]]): tVf(game, terrainTypes[wij[0]][wij[1]]);
         return v.getDistanceTo(u) <= v.getVisionRange() * shF * vF;
@@ -338,8 +408,14 @@ public final class LocalTestRendererListener {
         Rect.Builder[] initial = new Rect.Builder[types.length];
         for (int i = 0; i < initial.length; i++) { initial[i] = new Rect.Builder(); initial[i].vt = types[i]; }
         Rect.Builder[] builders = mV().reduce(initial, (rects, VeEx) -> {
-            for (int i = 0; i < types.length; i++) if (VeEx.getType() == types[i]) rects[i].update(VeEx);return rects;
-        }, (rl, rr) -> { for (int i = 0; i < rl.length; i++) rl[i] = rl[i].combine(rr[i]); return rl; });
+            for (int i = 0; i < types.length; i++)
+                if (VeEx.getType() == types[i]) rects[i].update(VeEx);
+            return rects;
+        }, (rl, rr) -> {
+            for (int i = 0; i < rl.length; i++)
+                rl[i] = rl[i].combine(rr[i]);
+            return rl;
+        });
         Rect[] rects = new Rect[types.length];
         for (int i = 0; i < initial.length; i++) { rects[i] = builders[i].build(); }
         return rects;
@@ -418,12 +494,13 @@ public final class LocalTestRendererListener {
     private void drawRect(Rect rect) {
         Point2I[] ps = Arrays.stream(rect.points()).map(p -> new Point2I(p.x, p.y)).toArray(Point2I[]::new);
         drawPolygon(ps);
+        Color color = graphics.getColor();
         Color[] colors = new Color[]{Color.RED, Color.BLACK, Color.BLUE, Color.ORANGE};
         for (int i = 0; i < ps.length; i++) {
             graphics.setColor(colors[i]);
             drawCircle(ps[i].to(), 5);
         }
-
+        graphics.setColor(color);
     }
 
     private void drawRect(double left, double top, double width, double height) {

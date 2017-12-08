@@ -1,3 +1,4 @@
+import model.Facility;
 import model.Vehicle;
 import model.VehicleType;
 import model.World;
@@ -32,6 +33,10 @@ public class Rectangle implements Comparable<Rectangle> {
         ax = dx = l; ay = by = t; cx = bx = r;dy = cy = b; this.l = l;this.r = r;this.t = t;this.b = b;
     }
     Rectangle(Vehicle v) { this(v.getX() - v.getRadius(), v.getY() - v.getRadius(), v.getY() + v.getRadius(), v.getX() + v.getRadius()); }
+    Rectangle(Facility facility) {
+        this(facility.getLeft(), facility.getTop(), facility.getTop() + 64, facility.getLeft() + 64);
+    }
+
 
     double square() {
         if (vts.isEmpty()) return 0;

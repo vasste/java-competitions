@@ -1,5 +1,7 @@
 import java.util.*;
 
+import static java.lang.StrictMath.round;
+
 /**
  * @author Vasilii Stepanov.
  * @since 06.12.2017
@@ -11,24 +13,27 @@ public class FactoriesRoute {
     private int width;
     private int height;
     public double[][] edges;
+    private int sx, sy;
 
-    public FactoriesRoute(double[][] worldSpeedFactor, int sx, int sy) {
-        this.width = 32;
-        this.height = 32;
+    public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti) {
+        this.width = width;
+        this.height = height;
         int titles = width * height;
-        edges = new double[width * height][width * height];
-        for (int i = 0; i < width * height; i++) {
-            for (int j = 0; j < width * height; j++) {
+        this.sx = sx;
+        this.sy = sy;
+        edges = new double[titles][titles];
+        for (int i = 0; i < titles; i++) {
+            for (int j = 0; j < titles; j++) {
                 int jy = j/width;
                 int jx = j - jy*width;
-                edges[i][j] = worldSpeedFactor[jx][jy];
+                edges[i][j] = worldSpeedFactor[jx][jy][vti];
             }
         }
         distTo = new double[titles];
         edgeTo = new N[titles];
-        Arrays.fill(distTo, Integer.MAX_VALUE);
+        Arrays.fill(distTo, Double.MAX_VALUE);
         pq = new PriorityQueue<>();
-        N sn = new N(sx, sy, 0);
+        N sn = new N(sx, sy, 0, width);
         distTo[sn.index()] = 0;
         pq.add(sn);
         while (!pq.isEmpty()) {
@@ -57,28 +62,30 @@ public class FactoriesRoute {
         }
     }
 
-    public static void cij(int i, int j, int width, int height, Set<N> adj) {
-        if (i >= height || i < 0 || j < 0 || j >= width) return;
-        adj.add(new N(i, j, Double.MAX_VALUE));
+    private void cij(int i, int j, int width, int height, Set<N> adj) {
+        if (i >= width || i < 0 || j < 0 || j >= height) return;
+        adj.add(new N(i, j, Double.MAX_VALUE, width));
     }
 
     private Set<N> evaluateNeighbours(N n) {
         Set<N> adj = new HashSet<>();
-        int i = n.x;
-        int j = n.y;
-        cij(i, j - 1, width, height, adj);
-        cij(i - 1, j - 1, width, height, adj);
-        cij(i - 1, j, width, height, adj);
-        cij(i - 1, j + 1, width, height, adj);
-        cij(i, j + 1, width, height, adj);
-        cij(i + 1, j + 1, width, height, adj);
-        cij(i + 1, j, width, height, adj);
+        int i = n.x; // 1
+        int j = n.y; // 1
+        cij(i - 1, j, width, height, adj); // 0,1
+        cij(i - 1, j - 1, width, height, adj); // 0,0
+        cij(i, j - 1, width, height, adj); // 1,0
+        cij(i + 1, j - 1, width, height, adj); // 2,0
+        cij(i + 1, j, width, height, adj); // 2,1
+        cij(i + 1, j + 1, width, height, adj); // 2,2
+        cij(i, j + 1, width, height, adj); //1,2
+        cij(i - 1, j + 1, width, height, adj); //0,2
         return adj;
     }
 
-    public Stack<N> pathTo(int x, int y) {
-        int v = y * 32 + x;
+    public Stack<N> pathTo(int x, int y, double cost) {
+        int v = y * width + x;
         Stack<N> path = new Stack<>();
+        path.push(new N(x, y, cost, width));
         for (N e = edgeTo[v]; e != null; e = edgeTo[e.index()]) {
             path.push(e);
         }
@@ -88,15 +95,17 @@ public class FactoriesRoute {
     static class N implements Comparable<N> {
         int x, y;
         double cost;
+        int width;
 
-        public N(int x, int y, double cost) {
+        public N(int x, int y, double cost, int width) {
             this.x = x;
             this.y = y;
             this.cost = cost;
+            this.width = width;
         }
 
         int index() {
-            return y * 32 + x;
+            return y * width + x;
         }
 
         @Override
@@ -119,7 +128,7 @@ public class FactoriesRoute {
 
         @Override
         public String toString() {
-            return x + "|" + y + "|" + cost;
+            return x + "|" + y + "|" + round(cost);
         }
     }
 }

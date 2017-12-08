@@ -2,7 +2,7 @@ import static java.lang.StrictMath.abs;
 
 public class U {
     public static final double EPS = 0.5;
-    public static final double PALE_SIDE = 32.0;
+    public static final int PALE_SIDE = 32;
 
     public static boolean eD(double a, double b) { return eD(a, b, EPS);}
     public static boolean eD(double a, double b, double eps) { return abs(a - b) < eps;}
