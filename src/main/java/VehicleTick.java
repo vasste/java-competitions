@@ -1,7 +1,6 @@
 import model.*;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,6 +28,7 @@ public class VehicleTick implements Comparable<VehicleTick> {
     }
 
     double getDistanceTo(VehicleTick vehicleTick) { return v.getDistanceTo(vehicleTick.v); }
+    double getSquaredDistanceTo(VehicleTick vehicleTick) { return v.getSquaredDistanceTo(vehicleTick.v); }
     boolean isSelected() { return v.isSelected(); }
     boolean m(Player me) { return v.getPlayerId() == me.getId(); }
     boolean e(Player me) { return v.getPlayerId() != me.getId(); }

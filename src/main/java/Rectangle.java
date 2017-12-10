@@ -37,6 +37,12 @@ public class Rectangle implements Comparable<Rectangle> {
         this(facility.getLeft(), facility.getTop(), facility.getTop() + 64, facility.getLeft() + 64);
     }
 
+    boolean isNaN() {
+        return l == Double.MAX_VALUE || r == Double.MAX_VALUE || t == Double.MAX_VALUE || b == Double.MAX_VALUE;
+    }
+    boolean nonIsNaN() {
+        return !isNaN();
+    }
 
     double square() {
         if (vts.isEmpty()) return 0;
@@ -49,7 +55,7 @@ public class Rectangle implements Comparable<Rectangle> {
     
     boolean include(double x, double y) {
         if (U.eD(angle, 0.01) || U.eD(angle, PI, 0.01)) return x >= l && x <= r && y >= t && y <= b;
-        Line line = new Line(new P2D(x, y), new P2D(1024,1024));
+        Line line = new Line(new P2D(x, y), new P2D(0,0));
         int intersects = 0;
         for (Line edge : edges()) {
             if (Line.intersect(edge.ps[0], edge.ps[1], line.ps[0], line.ps[1])) intersects++;

@@ -40,7 +40,7 @@ public class FighterStrategy implements Strategy {
             }
         }
         if (me.getRemainingActionCooldownTicks() > 0) return;
-        if (world.getTickIndex() < 1000) return;
+        //if (world.getTickIndex() < 1000) return;
         MoveBuilder nextMove = moves.poll();
         if (nextMove == null) {
             Rectangle rectangle = OfVG(eVt(VehicleType.TANK));

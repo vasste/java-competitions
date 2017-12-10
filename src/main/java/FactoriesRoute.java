@@ -13,14 +13,11 @@ public class FactoriesRoute {
     private int width;
     private int height;
     public double[][] edges;
-    private int sx, sy;
 
     public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti) {
         this.width = width;
         this.height = height;
         int titles = width * height;
-        this.sx = sx;
-        this.sy = sy;
         edges = new double[titles][titles];
         for (int i = 0; i < titles; i++) {
             for (int j = 0; j < titles; j++) {

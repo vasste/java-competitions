@@ -1,6 +1,7 @@
 import model.ActionType;
 import model.Move;
 import model.VehicleType;
+import model.World;
 
 public class MoveBuilder {
     private ActionType action;
@@ -45,11 +46,32 @@ public class MoveBuilder {
         this.x = x - current.x;
         return this;
     }
+    MoveBuilder dfCToXY(P2D current, double x, double y, Rectangle rectangle, World world) {
+        this.y = y - current.y;
+        this.x = x - current.x;
+        if (rectangle.r + this.x >= world.getWidth()) this.x -= rectangle.r + this.x - world.getWidth();
+        if (rectangle.b + this.y >= world.getHeight()) this.y -= rectangle.b + this.y - world.getHeight();
+        if (rectangle.l + this.x < 0) this.x = -rectangle.l;
+        if (rectangle.t + this.y < 0) this.y = -rectangle.t;
+        return this;
+    }
+
     MoveBuilder dfCToXY(Rectangle current, double x, double y) {
         this.y = y - current.cY();
         this.x = x - current.cX();
         return this;
     }
+
+    MoveBuilder dfCToXY(Rectangle current, double x, double y, Rectangle rectangle, World world) {
+        this.y = y - current.cY();
+        this.x = x - current.cX();
+        if (rectangle.r + this.x >= world.getWidth()) this.x -= rectangle.r + this.x - world.getWidth();
+        if (rectangle.b + this.y >= world.getHeight()) this.y -= rectangle.b + this.y - world.getHeight();
+        if (rectangle.l + this.x < 0) this.x = -rectangle.l;
+        if (rectangle.t + this.y < 0) this.y = -rectangle.t;
+        return this;
+    }
+
     MoveBuilder angle(double angle) { this.angle = angle; return this; }
     MoveBuilder factor(double factor) { this.factor = factor; return this; }
     MoveBuilder maxSpeed(double maxSpeed) { this.maxSpeed = maxSpeed; return this; }
