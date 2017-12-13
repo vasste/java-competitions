@@ -23,7 +23,9 @@ public class FactoriesRoute {
             for (int j = 0; j < titles; j++) {
                 int jy = j/width;
                 int jx = j - jy*width;
-                edges[i][j] = worldSpeedFactor[jx][jy][vti];
+                int iy = i/width;
+                int ix = i - iy*width;
+                edges[i][j] = worldSpeedFactor[jx][jy][vti] + worldSpeedFactor[ix][iy][vti];
             }
         }
         distTo = new double[titles];

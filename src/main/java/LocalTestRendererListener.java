@@ -29,10 +29,8 @@ public final class LocalTestRendererListener {
     private Player enemy;
     WeatherType[][] weatherTypes;
     TerrainType[][] terrainTypes;
-    Map<Long, FacilityPoint> facilitiesPoint;
     Map<Long, Facility> facilityMap = new HashMap<>();
     BufferedWriter log;
-    long facilityIdStart;
 
     public LocalTestRendererListener() throws IOException {
         log = new BufferedWriter(new FileWriter(new File("log.txt")));
@@ -69,7 +67,7 @@ public final class LocalTestRendererListener {
             for (FactoriesRoute.N n : ns) {
                 path.push(n);
             }
-             return path;
+            return path;
         }
 
         @Override
@@ -91,6 +89,12 @@ public final class LocalTestRendererListener {
         }
     }
 
+    Facility[] leftFacilities;
+    Facility[] rightFacilities;
+
+    Map<Long, FacilityPoint> leftFacilityPoints;
+    Map<Long, FacilityPoint> rightFacilityPoints;
+
     public void beforeDrawScene(Graphics graphics, World world, Game game, int canvasWidth, int canvasHeight,
                                 double left, double top, double width, double height) {
         updateFields(graphics, world, game, canvasWidth, canvasHeight, left, top, width, height);
@@ -101,37 +105,23 @@ public final class LocalTestRendererListener {
                 facilityMap.put(facilities[i].getId(), facilities[i]);
             }
             int factor = 2;
-            if (facilitiesPoint == null) {
-                P2D zero = new P2D(0, 0);
-                Arrays.sort(facilities, (o1, o2) -> Double.compare(P2D.distanceTo(new P2D(o1.getLeft(), o1.getTop()), zero), P2D.distanceTo(new P2D(o2.getLeft(), o2.getTop()), zero)));
-                facilityIdStart = facilities[0].getId();
-                facilitiesPoint = new HashMap<>();
+            if (leftFacilityPoints == null || rightFacilityPoints == null) {
+               leftFacilities = Arrays.stream(facilities).filter(f -> f.getLeft() < 512).toArray(Facility[]::new);
+               rightFacilities = Arrays.stream(facilities).filter(f -> f.getLeft() >= 512).toArray(Facility[]::new);
+
+                leftFacilityPoints = new HashMap<>();
+                rightFacilityPoints = new HashMap<>();
                 double[][] worldSpeedFactors = new double[(int)(world.getHeight()/U.PALE_SIDE)/2][(int)(world.getWidth()/U.PALE_SIDE)/2];
                 for (int i = 0; i < worldSpeedFactors.length * 2; i++) {
                     for (int j = 0; j < worldSpeedFactors.length * 2; j++) {
-                        worldSpeedFactors[i/2][j/2] = Math.max(worldSpeedFactors[i/2][j/2], 2 - tSf(game, terrainTypes[i][j]));
+                        worldSpeedFactors[i/2][j/2] += 2 - tSf(game, terrainTypes[i][j]);
                     }
                 }
-                Facility from = facilities[0];
-                do {
-                    int[] fij = new P2D(from.getLeft(), from.getTop()).inWorld(world, factor);
-                    FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, fij[0], fij[1], U.PALE_SIDE/factor, U.PALE_SIDE/factor);
-                    FacilityPoint point = new FacilityPoint();
-                    for (Facility to : facilities) {
-                        if (to.getId() == from.getId()) continue;
-                        int[] tij = new P2D(to.getLeft(), to.getTop()).inWorld(world, factor);
-                        point.facilities.put(to.getId(), route.pathTo(tij[0], tij[1], worldSpeedFactors[tij[0]][tij[1]]));
-                    }
-                    point.build(from.getId(), facilitiesPoint);
-                    facilitiesPoint.put(from.getId(), point);
-                    if (point.facilityRouteTo == 0) point.facilityRouteTo = facilityIdStart;
-                    from = facilityMap.get(point.facilityRouteTo);
-                } while(from.getId() != facilityIdStart);
+                createRoute(world, leftFacilities, factor, worldSpeedFactors, leftFacilities[0], leftFacilityPoints);
+                createRoute(world, rightFacilities, factor, worldSpeedFactors, rightFacilities[0], rightFacilityPoints);
 
-                log.write(facilitiesPoint.values() + "");
-                log.flush();
             }
-         //   int i = 0;
+            //   int i = 0;
 //            Facility facility = facilityMap.get(id);
 //            int[] fij = new P2D(facility.getLeft(), facility.getTop()).inWorld(world, 2);
 //            Rect rect = new Rect(facility);
@@ -151,28 +141,11 @@ public final class LocalTestRendererListener {
                 drawLine(k * U.PALE_SIDE * factor, 0, k * U.PALE_SIDE * factor, 1024);
             }
 
-            FacilityPoint facilityPoint = facilitiesPoint.get(facilityIdStart);
             graphics.setFont(graphics.getFont().deriveFont(Font.BOLD));
-            do {
-
-                Stack<FactoriesRoute.N> path = facilityPoint.pathToNext();
-                FactoriesRoute.N from = path.pop();
-                graphics.setColor(Color.BLACK);
-                P2D fromP = new P2D(factor * from.x * U.PALE_SIDE, factor * from.y * U.PALE_SIDE);
-                drawRect(new Rect(fromP.x, fromP.y, fromP.y + U.PALE_SIDE * factor, fromP.x + U.PALE_SIDE * factor));
-                fromP = new P2D(factor * from.x * U.PALE_SIDE + U.PALE_SIDE * factor/2, factor * from.y * U.PALE_SIDE + U.PALE_SIDE * factor/2);
-                Point2I pt = toCanvasPosition(fromP.x, fromP.y);
-                graphics.drawChars((facilityPoint.facilityRouteFrom + "").toCharArray(), 0, (facilityPoint.facilityRouteFrom + "").length(), pt.x, pt.y);
-                graphics.setColor(Color.RED);
-                while (!path.isEmpty()) {
-                    FactoriesRoute.N to = path.pop();
-                    P2D dst = new P2D(factor * to.x * U.PALE_SIDE + U.PALE_SIDE * factor/2,
-                            factor * to.y * U.PALE_SIDE + U.PALE_SIDE * factor/2);
-                    drawLine(fromP, dst);
-                    fromP = dst;
-                }
-                facilityPoint = facilitiesPoint.get(facilityPoint.facilityRouteTo);
-            } while (facilityPoint.facilityRouteTo != facilityIdStart);
+            graphics.setColor(Color.RED);
+            displayRoute(graphics, factor, leftFacilityPoints.get(leftFacilities[0].getId()), leftFacilityPoints);
+            graphics.setColor(Color.BLACK);
+            displayRoute(graphics, factor, rightFacilityPoints.get(rightFacilities[0].getId()), rightFacilityPoints);
             vehicles = world.getVehicles();
 //            drawCircle(new P2D(enemy.getNextNuclearStrikeX(), enemy.getNextNuclearStrikeY()), 10);
 //            graphics.setColor(Color.RED);
@@ -194,9 +167,49 @@ public final class LocalTestRendererListener {
 //            drawLine(aline.ps[0].x, aline.ps[0].y, aline.ps[1].x, aline.ps[1].y);
 //            mkNS(graphics);
         } catch (Throwable t) {
-             System.out.printf(t.getMessage());
+            System.out.printf(t.getMessage());
         }
         graphics.setColor(color);
+    }
+
+    private void createRoute(World world, Facility[] facilities, int factor, double[][] worldSpeedFactors, Facility from,
+                             Map<Long, FacilityPoint> facilitiesPoint) {
+        long facilityIdStart = from.getId();
+        do {
+            int[] fij = new P2D(from.getLeft(), from.getTop()).inWorld(world, factor);
+            FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, fij[0], fij[1], U.PALE_SIDE/factor, U.PALE_SIDE/factor);
+            FacilityPoint point = new FacilityPoint();
+            for (Facility to : facilities) {
+                if (to.getId() == from.getId()) continue;
+                int[] tij = new P2D(to.getLeft(), to.getTop()).inWorld(world, factor);
+                point.facilities.put(to.getId(), route.pathTo(tij[0], tij[1], worldSpeedFactors[tij[0]][tij[1]]));
+            }
+            point.build(from.getId(), facilitiesPoint);
+            facilitiesPoint.put(from.getId(), point);
+            if (point.facilityRouteTo == 0) point.facilityRouteTo = facilityIdStart;
+            from = facilityMap.get(point.facilityRouteTo);
+        } while(from.getId() != facilityIdStart);
+    }
+
+    private void displayRoute(Graphics graphics, int factor, FacilityPoint start, Map<Long, FacilityPoint> facilitiesPoint) {
+        FacilityPoint next = start;
+        do {
+            Stack<FactoriesRoute.N> path = next.pathToNext();
+            FactoriesRoute.N from = path.pop();
+            P2D fromP = new P2D(factor * from.x * U.PALE_SIDE, factor * from.y * U.PALE_SIDE);
+            drawRect(new Rect(fromP.x, fromP.y, fromP.y + U.PALE_SIDE * factor, fromP.x + U.PALE_SIDE * factor));
+            fromP = new P2D(factor * from.x * U.PALE_SIDE + U.PALE_SIDE * factor/2, factor * from.y * U.PALE_SIDE + U.PALE_SIDE * factor/2);
+            Point2I pt = toCanvasPosition(fromP.x, fromP.y);
+            graphics.drawChars((next.facilityRouteFrom + "").toCharArray(), 0, (next.facilityRouteFrom + "").length(), pt.x, pt.y);
+            while (!path.isEmpty()) {
+                FactoriesRoute.N to = path.pop();
+                P2D dst = new P2D(factor * to.x * U.PALE_SIDE + U.PALE_SIDE * factor/2,
+                        factor * to.y * U.PALE_SIDE + U.PALE_SIDE * factor/2);
+                drawLine(fromP, dst);
+                fromP = dst;
+            }
+            next = facilitiesPoint.get(next.facilityRouteTo);
+        } while (next.facilityRouteFrom != start.facilityRouteFrom);
     }
 
     Vehicle cEP(boolean arial, VehicleType... vehicleTypes) {

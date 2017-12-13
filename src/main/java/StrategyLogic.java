@@ -35,14 +35,10 @@ public class StrategyLogic {
     VehicleType[] mainOrder;
     Random random;
     double[][][] worldSpeedFactors;
-    Map<Long, FacilityPoint> leftFacilitiesTerrainPoint = new HashMap<>();
-    Map<Long, FacilityPoint> rightFacilitiesTerrainPoint = new HashMap<>();
     Map<Long, Facility> facilityMap = new HashMap<>();
     Map<Integer, Facility> groupFromFacilityMap = new HashMap<>();
     Map<Integer, Map<Long, FacilityPoint>> groupFromFacilityPoint = new HashMap<>();
     Map<Integer, Facility> groupNextFacility = new HashMap<>();
-    long facilityIdLeft;
-    long facilityIdRight;
     final int factor = 2;
     Map<Integer, Accumulator> groupUpdates = new HashMap<>();
     static final VehicleType[] ARIAL_TYPES = new VehicleType[]{FIGHTER, HELICOPTER};
@@ -64,15 +60,6 @@ public class StrategyLogic {
         }
 
         if (worldSpeedFactors == null && facilities.length > 0) {
-            Facility[] left = Arrays.stream(facilities).filter(f -> f.getLeft() < 512).toArray(Facility[]::new);
-            Facility[] right = Arrays.stream(facilities).filter(f -> f.getLeft() >= 512).toArray(Facility[]::new);
-            P2D zero = new P2D(0, 0);
-            Arrays.sort(left, Comparator.comparingDouble(o -> P2D.distanceTo(new P2D(o.getLeft(), o.getTop()), zero)));
-            Arrays.sort(right, Comparator.comparingDouble(o -> P2D.distanceTo(new P2D(o.getLeft(), o.getTop()), zero)));
-            facilityIdLeft = left[0].getId();
-            facilityIdRight = right[0].getId();
-            leftFacilitiesTerrainPoint = new HashMap<>();
-            rightFacilitiesTerrainPoint = new HashMap<>();
             worldSpeedFactors = new double[(int)(world.getHeight()/U.PALE_SIDE)/factor][(int)(world.getWidth()/U.PALE_SIDE)/factor][2];
             for (int i = 0; i < worldSpeedFactors.length * factor; i++) {
                 for (int j = 0; j < worldSpeedFactors.length * factor; j++) {
@@ -81,30 +68,8 @@ public class StrategyLogic {
                     worldSpeedFactors[i/factor][j/factor][1] += 2 - VehicleTick.tSf(game, terrainTypes[i][j]);
                 }
             }
-            makeRoutePoints(left[0], left, 1, leftFacilitiesTerrainPoint, facilityIdLeft);
-            makeRoutePoints(right[0], right, 1, rightFacilitiesTerrainPoint, facilityIdRight);
         }
         return vu;
-    }
-
-    void makeRoutePoints(Facility from, Facility[] facilities, int vti, Map<Long, FacilityPoint> facilitiesPoint, long facilityIdStart) {
-        do {
-            int[] fij = new P2D(from.getLeft(), from.getTop()).inWorld(world, factor);
-            FactoriesRoute route = new FactoriesRoute(worldSpeedFactors, fij[0], fij[1], U.PALE_SIDE/factor, U.PALE_SIDE/factor, vti);
-            FacilityPoint point = new FacilityPoint();
-            for (Facility to : facilities) {
-                if (to == null) continue;
-                if (to.getId() == from.getId()) continue;
-                int[] tij = new P2D(to.getLeft(), to.getTop()).inWorld(world, factor);
-                point.facilities.put(to.getId(), route.pathTo(tij[0], tij[1], worldSpeedFactors[tij[0]][tij[1]][vti]));
-            }
-            point.build(from.getId(), facilitiesPoint);
-            facilitiesPoint.put(from.getId(), point);
-            if (point.facilityRouteTo == 0) {
-                point.facilityRouteTo = facilityIdStart;
-            }
-            from = facilityMap.get(point.facilityRouteTo);
-        } while(from.getId() != facilityIdStart);
     }
 
     void setupUnitProduction(Facility facility, int gid) {
@@ -574,6 +539,11 @@ public class StrategyLogic {
         moves.add(new MoveBuilder(CLEAR_AND_SELECT).vehicleType(TANK).setRect(new Rectangle(world)));
         moves.add(new MoveBuilder(ADD_TO_SELECTION).vehicleType(IFV).setRect(new Rectangle(world)));
         moves.add(new MoveBuilder(ADD_TO_SELECTION).vehicleType(ARRV).setRect(new Rectangle(world)));
+        moves.add(MoveBuilder.c(ASSIGN).group(id));
+    }
+
+    void createTypeGroup(VehicleType type, int id) {
+        moves.add(new MoveBuilder(CLEAR_AND_SELECT).vehicleType(type).setRect(new Rectangle(world)));
         moves.add(MoveBuilder.c(ASSIGN).group(id));
     }
 

@@ -3,16 +3,15 @@ import model.*;
 import java.util.*;
 
 import static java.lang.Math.PI;
-import static java.lang.Math.floorDiv;
-import static java.lang.Math.random;
-import static model.ActionType.*;
+import static model.ActionType.CLEAR_AND_SELECT;
+import static model.ActionType.MOVE;
 import static model.VehicleType.*;
 
 public final class MyStrategy implements Strategy {
-    public enum VehicleTypeState {MOVING, WAITING, SCALING, ROTATING, ATTACK}
+    public enum VehicleTypeState {MOVING, WAITING, SCALING, ROTATING, ATTACK, ESCAPE}
     public enum GameState {ORDER_CREATION, ORDER_POSITIONING, ORDER_SCALING,
         ORDER_GROUPING, ORDER_ROTATION, TACTICAL_EXECUTION, TACTICAL_EXECUTION_GROUPS, TACTICAL_EXECUTION_SINGLE,
-        TACTICAL_EXECUTION_CHANGE, TACTICAL_EXECUTION_FACILITIES, FACILITIES_ORDER, NUCLEAR_STRIKE}
+        TACTICAL_EXECUTION_CHANGE, TACTICAL_EXECUTION_FACILITIES, NUCLEAR_STRIKE}
     public enum GroupGameState {NUCLEAR_STRIKE, NUCLEAR_STRIKE_RECOVERY, WAIT_COMMAND_FINISH, TACTICAL_EXECUTION}
     public enum GroupOrderState { I, INX, INY, NX, NY, F }
     static final Boolean DEBUG = false;
@@ -30,10 +29,15 @@ public final class MyStrategy implements Strategy {
     public static final int GFH     = 2;
     public static final int GFHTAI  = 3;
 
-    public static final int GFHTAI1  = 4;
-    public static final int GFHTAI2  = 5;
+    public static final int GF  = 6;
+    public static final int GA  = 7;
+    public static final int GT  = 8;
+    public static final int GI  = 9;
+    public static final int GH  = 10;
 
-    public static final int GH = 6;
+    public static final int[] FACILITY_GROUPS = new int[]{GA, GT, GI};
+
+    public static final int GPH = 11;
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
@@ -74,25 +78,38 @@ public final class MyStrategy implements Strategy {
                     for (Rectangle r : rs) {
                         while (!r.commands.isEmpty()) logic.positioningMoves.add(r.commands.pollLast());
                     }
-                    gameState = GameState.ORDER_POSITIONING;
                     groupTypesMap.put(GFH, EnumSet.of(FIGHTER, HELICOPTER));
                     groupTypesMap.put(GIAT, EnumSet.of(TANK, IFV, ARRV));
                     groupTypesMap.put(GFHTAI, EnumSet.of(FIGHTER, HELICOPTER, TANK, IFV, ARRV));
-                    groupTypesMap.put(GFHTAI1, EnumSet.of(FIGHTER, HELICOPTER, TANK, IFV, ARRV));
-                    groupTypesMap.put(GFHTAI2, EnumSet.of(FIGHTER, HELICOPTER, TANK, IFV, ARRV));
-                    groupTypesMap.put(GH, EnumSet.of(HELICOPTER));
+                    groupTypesMap.put(GPH, EnumSet.of(HELICOPTER));
+
                     groupGameStateMap.put(GFH, GroupGameState.TACTICAL_EXECUTION);
                     groupGameStateMap.put(GIAT, GroupGameState.TACTICAL_EXECUTION);
                     groupGameStateMap.put(GFHTAI, GroupGameState.TACTICAL_EXECUTION);
-                    groupGameStateMap.put(GFHTAI1, GroupGameState.WAIT_COMMAND_FINISH);
-                    groupGameStateMap.put(GFHTAI2, GroupGameState.WAIT_COMMAND_FINISH);
-                    groupGameStateMap.put(GH, GroupGameState.WAIT_COMMAND_FINISH);
+                    groupGameStateMap.put(GPH, GroupGameState.WAIT_COMMAND_FINISH);
 
-                    logic.vehicleGroupStateMap.put(GFHTAI1, VehicleTypeState.ATTACK);
-                    logic.vehicleGroupStateMap.put(GFHTAI2, VehicleTypeState.ATTACK);
                     logic.vehicleGroupStateMap.put(GFHTAI, VehicleTypeState.ATTACK);
                     logic.vehicleGroupStateMap.put(GIAT, VehicleTypeState.ATTACK);
                     logic.vehicleGroupStateMap.put(GFH, VehicleTypeState.ATTACK);
+
+                    groupTypesMap.put(GH, EnumSet.of(HELICOPTER));
+                    groupTypesMap.put(GF, EnumSet.of(FIGHTER));
+                    groupTypesMap.put(GT, EnumSet.of(TANK));
+                    groupTypesMap.put(GA, EnumSet.of(ARRV));
+                    groupTypesMap.put(GI, EnumSet.of(IFV));
+
+                    int[] typedGroups = new int[]{GF, GH, GA, GT, GI};
+                    for (int id : typedGroups) {
+                        groupGameStateMap.put(id, GroupGameState.TACTICAL_EXECUTION);
+                        logic.vehicleGroupStateMap.put(id, VehicleTypeState.ATTACK);
+                    }
+                    logic.createTypeGroup(TANK, GT);
+                    logic.createTypeGroup(HELICOPTER, GH);
+                    logic.createTypeGroup(FIGHTER, GF);
+                    logic.createTypeGroup(ARRV, GA);
+                    logic.createTypeGroup(IFV, GI);
+                    if (logic.facilityMap.isEmpty()) gameState = GameState.ORDER_POSITIONING;
+                    else gameState = GameState.TACTICAL_EXECUTION_FACILITIES;
                     break;
                 case ORDER_POSITIONING:
                     boolean arial = false, ground = false;
@@ -153,45 +170,14 @@ public final class MyStrategy implements Strategy {
                     if (logic.sum(vu, StrategyLogic.ARIAL_TYPES).zero()) {
                         if (!logic.protectGround(GFH, GIAT) && !logic.restore()) {
                             logic.createGroupTIAFH(GFH, GIAT, GFHTAI);
-                            if (!logic.facilityMap.isEmpty()) {
-                                boolean finalOrderHorizontally = !horizontally;
-                                Rectangle[] evR = logic.createGroupTIAFH(finalOrderHorizontally, GFHTAI1, GFHTAI2);
-                                gameState = GameState.FACILITIES_ORDER;
-                                if (finalOrderHorizontally) {
-                                    logic.makeGroupMove(GFHTAI1, evR[0], evR[0].cX(), evR[0].cY() + 2*U.PALE_SIDE * logic.factor, 0, true);
-                                    logic.makeGroupMove(GFHTAI2, evR[1], evR[1].cX() + 2*U.PALE_SIDE * logic.factor, evR[1].cY(), 0, true);
-                                } else {
-                                    logic.makeGroupMove(GFHTAI1, evR[0], evR[0].cX() + 2*U.PALE_SIDE * logic.factor, evR[0].cY(), 0, true);
-                                    logic.makeGroupMove(GFHTAI2, evR[1], evR[1].cX(), evR[1].cY() + 2*U.PALE_SIDE * logic.factor, 0, true);
-                                }
-                            } else gameState = GameState.TACTICAL_EXECUTION_CHANGE;
+                            gameState = GameState.TACTICAL_EXECUTION_CHANGE;
                         }
                     }
                     break;
-                case FACILITIES_ORDER:
-                    if (logic.sum(vu, VehicleType.values()).zero()) {
-                        boolean finalOrderHorizontally = !horizontally;
-                        if (finalOrderHorizontally) {
-                            logic.groupFromFacilityMap.put(GFHTAI2, logic.facilityMap.get(logic.facilityIdRight));
-                            logic.groupFromFacilityMap.put(GFHTAI1, logic.facilityMap.get(logic.facilityIdLeft));
-                            logic.groupFromFacilityPoint.put(GFHTAI1, logic.leftFacilitiesTerrainPoint);
-                            logic.groupFromFacilityPoint.put(GFHTAI2, logic.rightFacilitiesTerrainPoint);
-                        } else {
-                            logic.groupFromFacilityMap.put(GFHTAI1, logic.facilityMap.get(logic.facilityIdRight));
-                            logic.groupFromFacilityMap.put(GFHTAI2, logic.facilityMap.get(logic.facilityIdLeft));
-                            logic.groupFromFacilityPoint.put(GFHTAI2, logic.leftFacilitiesTerrainPoint);
-                            logic.groupFromFacilityPoint.put(GFHTAI1, logic.rightFacilitiesTerrainPoint);
-                        }
-                        logic.captureStartFactory(GFHTAI1);
-                        logic.captureStartFactory(GFHTAI2);
-                        gameState = GameState.TACTICAL_EXECUTION_FACILITIES;
-                        groups = new HashSet<>(Arrays.asList(GFHTAI1, GFHTAI2));
-                    } else return;
-                    break;
                 case TACTICAL_EXECUTION:
                     double evRaS = Arrays.stream(logic.sOfVT(logic.eV(), StrategyLogic.ARIAL_TYPES)).filter(Rectangle::nonIsNaN).mapToDouble(Rectangle::square).sum();
-                    double evRgS = Arrays.stream(logic.sOfVT(logic.eV(), StrategyLogic.GROUND_TYPES)).filter(Rectangle::nonIsNaN).mapToDouble(Rectangle::square).sum();;
-                    if (!Double.isInfinite(evRaS/evRgS) && evRaS/evRgS > 1.2) {
+                    double evRgS = Arrays.stream(logic.sOfVT(logic.eV(), StrategyLogic.GROUND_TYPES)).filter(Rectangle::nonIsNaN).mapToDouble(Rectangle::square).sum();
+                    if (!Double.isInfinite(evRaS / evRgS) && evRaS / evRgS > 1.2) {
                         gameState = GameState.TACTICAL_EXECUTION_GROUPS;
                         groups = new HashSet<>(Arrays.asList(GFH, GIAT));
                     } else {
@@ -233,8 +219,9 @@ public final class MyStrategy implements Strategy {
                     }
                     break;
                 case TACTICAL_EXECUTION_FACILITIES:
+
                     Facility[] facilities = world.getFacilities();
-                    Rectangle[] evR = logic.sOfVG(GFHTAI1, GFHTAI2);
+                    Rectangle[] evR = logic.sOfVG(FACILITY_GROUPS);
                     F:for (Facility facility : facilities) {
                         if (facility.getOwnerPlayerId() != me.getId()) continue;
                         if (facility.getType() == FacilityType.CONTROL_CENTER) continue;
@@ -248,6 +235,7 @@ public final class MyStrategy implements Strategy {
                             logic.addNextMove(MoveBuilder.c(MOVE).dfCToXY(facilityRect, ep.x(), ep.y()));
                         }
                     }
+
                     for (Integer gid : groups) {
                         if (logic.accGroups(logic.groupUpdates, gid).zero()) {
                             Queue<MoveBuilder> mb = logic.groupPositioningMoves.get(gid);
@@ -270,7 +258,7 @@ public final class MyStrategy implements Strategy {
                     Queue<MoveBuilder> mb = logic.groupPositioningMoves.get(gid);
                     switch (groupGameState) {
                         case TACTICAL_EXECUTION:
-                            int captured = gid >= GH ? 1 : logic.captureNearestFactory(gid);
+                            int captured = gid >= GPH ? 1 : logic.captureNearestFactory(gid);
                             if (captured > 0) {
                                 VehicleTick ep = logic.cEP(gid == GFH, gid);
                                 if (ep == null) return;
