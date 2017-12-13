@@ -11,7 +11,7 @@ public final class MyStrategy implements Strategy {
     public enum VehicleTypeState {MOVING, WAITING, SCALING, ROTATING, ATTACK, ESCAPE}
     public enum GameState {ORDER_CREATION, ORDER_POSITIONING, ORDER_SCALING,
         ORDER_GROUPING, ORDER_ROTATION, TACTICAL_EXECUTION, TACTICAL_EXECUTION_GROUPS, TACTICAL_EXECUTION_SINGLE,
-        TACTICAL_EXECUTION_CHANGE, TACTICAL_EXECUTION_FACILITIES, NUCLEAR_STRIKE}
+        TACTICAL_EXECUTION_CHANGE, FACILITY_ORDERS, TACTICAL_EXECUTION_FACILITIES, NUCLEAR_STRIKE}
     public enum GroupGameState {NUCLEAR_STRIKE, NUCLEAR_STRIKE_RECOVERY, WAIT_COMMAND_FINISH, TACTICAL_EXECUTION}
     public enum GroupOrderState { I, INX, INY, NX, NY, F }
     static final Boolean DEBUG = false;
@@ -109,7 +109,10 @@ public final class MyStrategy implements Strategy {
                     logic.createTypeGroup(ARRV, GA);
                     logic.createTypeGroup(IFV, GI);
                     if (logic.facilityMap.isEmpty()) gameState = GameState.ORDER_POSITIONING;
-                    else gameState = GameState.TACTICAL_EXECUTION_FACILITIES;
+                    else {
+                        gameState = GameState.FACILITY_ORDERS;
+                        groups = new HashSet<>(Arrays.asList(GA, GT, GI));
+                    }
                     break;
                 case ORDER_POSITIONING:
                     boolean arial = false, ground = false;
@@ -174,6 +177,13 @@ public final class MyStrategy implements Strategy {
                         }
                     }
                     break;
+                case FACILITY_ORDERS:
+                    Rectangle[] rectangles = logic.sOfVG(GA, GT, GI);
+                    for (int id : groups) {
+                        logic.captureNearestFactory(id, rectangles);
+                    }
+                    gameState = GameState.TACTICAL_EXECUTION_FACILITIES;
+                    break;
                 case TACTICAL_EXECUTION:
                     double evRaS = Arrays.stream(logic.sOfVT(logic.eV(), StrategyLogic.ARIAL_TYPES)).filter(Rectangle::nonIsNaN).mapToDouble(Rectangle::square).sum();
                     double evRgS = Arrays.stream(logic.sOfVT(logic.eV(), StrategyLogic.GROUND_TYPES)).filter(Rectangle::nonIsNaN).mapToDouble(Rectangle::square).sum();
@@ -219,7 +229,6 @@ public final class MyStrategy implements Strategy {
                     }
                     break;
                 case TACTICAL_EXECUTION_FACILITIES:
-
                     Facility[] facilities = world.getFacilities();
                     Rectangle[] evR = logic.sOfVG(FACILITY_GROUPS);
                     F:for (Facility facility : facilities) {
@@ -253,12 +262,13 @@ public final class MyStrategy implements Strategy {
 
             if (logic.moves.isEmpty()) {
                 logic.setupNuclearStrike();
+                Rectangle[] rectangles = logic.sOfVG(GA, GT, GI);
                 for (Integer gid : groups) {
                     GroupGameState groupGameState = groupGameStateMap.get(gid);
                     Queue<MoveBuilder> mb = logic.groupPositioningMoves.get(gid);
                     switch (groupGameState) {
                         case TACTICAL_EXECUTION:
-                            int captured = gid >= GPH ? 1 : logic.captureNearestFactory(gid);
+                            int captured = gid >= GPH ? 1 : logic.captureNearestFactory(gid, rectangles);
                             if (captured > 0) {
                                 VehicleTick ep = logic.cEP(gid == GFH, gid);
                                 if (ep == null) return;

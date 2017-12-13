@@ -14,7 +14,8 @@ public class FactoriesRoute {
     private int height;
     public double[][] edges;
 
-    public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti) {
+    public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti,
+                          int[][] otherGroups) {
         this.width = width;
         this.height = height;
         int titles = width * height;
@@ -25,7 +26,21 @@ public class FactoriesRoute {
                 int jx = j - jy*width;
                 int iy = i/width;
                 int ix = i - iy*width;
-                edges[i][j] = worldSpeedFactor[jx][jy][vti] + worldSpeedFactor[ix][iy][vti];
+                edges[i][j] += worldSpeedFactor[jx][jy][vti] + worldSpeedFactor[ix][iy][vti];
+                for (int k = 0; k < otherGroups.length; k++) {
+                    if (jx == otherGroups[k][0] && jy == otherGroups[k][1]) {
+                        edges[i][j] += 10;
+                        for (N n : evaluateNeighbours(new N(jx, jy,0, width))) {
+                            edges[i][n.index()] += 10;
+                        }
+                    }
+                    if (ix == otherGroups[k][0] && iy == otherGroups[k][1]) {
+                        edges[i][j] += 10;
+                        for (N n : evaluateNeighbours(new N(ix, iy,0, width))) {
+                            edges[i][n.index()] += 10;
+                        }
+                    }
+                }
             }
         }
         distTo = new double[titles];
