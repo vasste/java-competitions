@@ -52,7 +52,11 @@ public class Rectangle implements Comparable<Rectangle> {
     P2D c() { return new P2D(cX(), cY()); }
     double cX() { return (l + r)/2; }
     double cY() { return (t + b)/2; }
-    
+
+    boolean include(P2D p2D) {
+        return include(p2D.x, p2D.y);
+    }
+
     boolean include(double x, double y) {
         if (U.eD(angle, 0.01) || U.eD(angle, PI, 0.01)) return x >= l && x <= r && y >= t && y <= b;
         Line line = new Line(new P2D(x, y), new P2D(0,0));

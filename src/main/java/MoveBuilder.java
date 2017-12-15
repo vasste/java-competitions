@@ -79,6 +79,9 @@ public class MoveBuilder {
     MoveBuilder vehicleType(VehicleType vehicleType) { this.vehicleType = vehicleType; return this; }
     MoveBuilder facilityId(long facilityId) { this.facilityId = facilityId; return this; }
     MoveBuilder vehicleId(long vehicleId) { this.vehicleId = vehicleId; return this; }
+    boolean isSelect() {
+        return action == ActionType.CLEAR_AND_SELECT;
+    }
     Move setMove(Move dst) {
         dst.setGroup(group);
 

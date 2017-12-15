@@ -13,6 +13,7 @@ public class FactoriesRoute {
     private int width;
     private int height;
     public double[][] edges;
+    public boolean[] noEdges;
 
     public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti,
                           int[][] otherGroups) {
@@ -20,6 +21,9 @@ public class FactoriesRoute {
         this.height = height;
         int titles = width * height;
         edges = new double[titles][titles];
+        noEdges = new boolean[titles];
+        N sn = new N(sx, sy, 0, width);
+        Set<N> adj = evaluateNeighbours(sn);
         for (int i = 0; i < titles; i++) {
             for (int j = 0; j < titles; j++) {
                 int jy = j/width;
@@ -28,16 +32,14 @@ public class FactoriesRoute {
                 int ix = i - iy*width;
                 edges[i][j] += worldSpeedFactor[jx][jy][vti] + worldSpeedFactor[ix][iy][vti];
                 for (int k = 0; k < otherGroups.length; k++) {
-                    if (jx == otherGroups[k][0] && jy == otherGroups[k][1]) {
-                        edges[i][j] += 10;
-                        for (N n : evaluateNeighbours(new N(jx, jy,0, width))) {
-                            edges[i][n.index()] += 10;
-                        }
+                    if (sx == otherGroups[k][0] && sy == otherGroups[k][1]) {
+                        continue;
                     }
-                    if (ix == otherGroups[k][0] && iy == otherGroups[k][1]) {
-                        edges[i][j] += 10;
-                        for (N n : evaluateNeighbours(new N(ix, iy,0, width))) {
-                            edges[i][n.index()] += 10;
+                    if (jx == otherGroups[k][0] && jy == otherGroups[k][1]) {
+                        noEdges[j] = true;
+                        for (N n : evaluateNeighbours(new N(jx, jy,0, width))) {
+                            if (adj.contains(n))
+                                noEdges[n.index()] = true;
                         }
                     }
                 }
@@ -47,12 +49,11 @@ public class FactoriesRoute {
         edgeTo = new N[titles];
         Arrays.fill(distTo, Double.MAX_VALUE);
         pq = new PriorityQueue<>();
-        N sn = new N(sx, sy, 0, width);
         distTo[sn.index()] = 0;
         pq.add(sn);
         while (!pq.isEmpty()) {
             N from = pq.remove();
-            Set<N> adj = evaluateNeighbours(from);
+            adj = evaluateNeighbours(from);
             for (N to : adj)
                 relax(from, to);
         }
@@ -77,7 +78,7 @@ public class FactoriesRoute {
     }
 
     private void cij(int i, int j, int width, int height, Set<N> adj) {
-        if (i >= width || i < 0 || j < 0 || j >= height) return;
+        if (i >= width || i < 0 || j < 0 || j >= height || noEdges[j * width + i]) return;
         adj.add(new N(i, j, Double.MAX_VALUE, width));
     }
 
@@ -99,8 +100,12 @@ public class FactoriesRoute {
     public Stack<N> pathTo(int x, int y, double cost) {
         int v = y * width + x;
         Stack<N> path = new Stack<>();
-        path.push(new N(x, y, cost, width));
+        boolean lastStep = true;
         for (N e = edgeTo[v]; e != null; e = edgeTo[e.index()]) {
+            if (lastStep) {
+                path.push(new N(x, y, cost, width));
+                lastStep = false;
+            }
             path.push(e);
         }
         return path;

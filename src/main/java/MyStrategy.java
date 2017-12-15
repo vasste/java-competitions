@@ -3,15 +3,15 @@ import model.*;
 import java.util.*;
 
 import static java.lang.Math.PI;
+import static model.ActionType.ASSIGN;
 import static model.ActionType.CLEAR_AND_SELECT;
-import static model.ActionType.MOVE;
 import static model.VehicleType.*;
 
 public final class MyStrategy implements Strategy {
     public enum VehicleTypeState {MOVING, WAITING, SCALING, ROTATING, ATTACK, ESCAPE}
-    public enum GameState {ORDER_CREATION, ORDER_POSITIONING, ORDER_SCALING,
+    public enum GameState {ORDER_CREATION, ORDER_POSITIONING, ORDER_ARIAL_POSITIONING, ORDER_SCALING,
         ORDER_GROUPING, ORDER_ROTATION, TACTICAL_EXECUTION, TACTICAL_EXECUTION_GROUPS, TACTICAL_EXECUTION_SINGLE,
-        TACTICAL_EXECUTION_CHANGE, FACILITY_ORDERS, TACTICAL_EXECUTION_FACILITIES, NUCLEAR_STRIKE}
+        TACTICAL_EXECUTION_CHANGE, TACTICAL_EXECUTION_FACILITIES, NUCLEAR_STRIKE}
     public enum GroupGameState {NUCLEAR_STRIKE, NUCLEAR_STRIKE_RECOVERY, WAIT_COMMAND_FINISH, TACTICAL_EXECUTION}
     public enum GroupOrderState { I, INX, INY, NX, NY, F }
     static final Boolean DEBUG = false;
@@ -35,9 +35,11 @@ public final class MyStrategy implements Strategy {
     public static final int GI  = 9;
     public static final int GH  = 10;
 
-    public static final int[] FACILITY_GROUPS = new int[]{GA, GT, GI};
+    static final int[] FACILITY_GROUPS = new int[]{GA, GT, GI};
+    static Set<Integer> CAPTURING_GROUPS = new HashSet<>(Arrays.asList(GA, GT, GI));
 
-    public static final int GPH = 11;
+    int manufacturedGroupIndex = 11;
+    Set<Integer> manufacturedEmptyGroupIds = new HashSet<>();
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
@@ -72,50 +74,50 @@ public final class MyStrategy implements Strategy {
                     Rectangle[] ars = logic.sOfVT(StrategyLogic.ARIAL_TYPES);
                     Arrays.sort(ars);
                     OrderGraph.setupGroupingMoves(rs, world);
-                    logic.createGroupFH(GFH);
-                    logic.createGroupTIA(GIAT);
                     for (Rectangle ar : ars) logic.positionGroup(ar.vt, ar, true, true, 20);
                     for (Rectangle r : rs) {
                         while (!r.commands.isEmpty()) logic.positioningMoves.add(r.commands.pollLast());
                     }
-                    groupTypesMap.put(GFH, EnumSet.of(FIGHTER, HELICOPTER));
-                    groupTypesMap.put(GIAT, EnumSet.of(TANK, IFV, ARRV));
-                    groupTypesMap.put(GFHTAI, EnumSet.of(FIGHTER, HELICOPTER, TANK, IFV, ARRV));
-                    groupTypesMap.put(GPH, EnumSet.of(HELICOPTER));
-
-                    groupGameStateMap.put(GFH, GroupGameState.TACTICAL_EXECUTION);
-                    groupGameStateMap.put(GIAT, GroupGameState.TACTICAL_EXECUTION);
-                    groupGameStateMap.put(GFHTAI, GroupGameState.TACTICAL_EXECUTION);
-                    groupGameStateMap.put(GPH, GroupGameState.WAIT_COMMAND_FINISH);
-
-                    logic.vehicleGroupStateMap.put(GFHTAI, VehicleTypeState.ATTACK);
-                    logic.vehicleGroupStateMap.put(GIAT, VehicleTypeState.ATTACK);
+                    logic.createGroupFH(GFH);
                     logic.vehicleGroupStateMap.put(GFH, VehicleTypeState.ATTACK);
+                    groupGameStateMap.put(GFH, GroupGameState.TACTICAL_EXECUTION);
+                    groupTypesMap.put(GFH, EnumSet.of(FIGHTER, HELICOPTER));
 
-                    groupTypesMap.put(GH, EnumSet.of(HELICOPTER));
-                    groupTypesMap.put(GF, EnumSet.of(FIGHTER));
-                    groupTypesMap.put(GT, EnumSet.of(TANK));
-                    groupTypesMap.put(GA, EnumSet.of(ARRV));
-                    groupTypesMap.put(GI, EnumSet.of(IFV));
+                    if (logic.facilityMap.isEmpty()) {
 
-                    int[] typedGroups = new int[]{GF, GH, GA, GT, GI};
-                    for (int id : typedGroups) {
-                        groupGameStateMap.put(id, GroupGameState.TACTICAL_EXECUTION);
-                        logic.vehicleGroupStateMap.put(id, VehicleTypeState.ATTACK);
+                        logic.createGroupTIA(GIAT);
+                        gameState = GameState.ORDER_ARIAL_POSITIONING;
+
+                        groupTypesMap.put(GIAT, EnumSet.of(TANK, IFV, ARRV));
+                        groupTypesMap.put(GFHTAI, EnumSet.of(FIGHTER, HELICOPTER, TANK, IFV, ARRV));
+
+                        groupGameStateMap.put(GIAT, GroupGameState.TACTICAL_EXECUTION);
+                        groupGameStateMap.put(GFHTAI, GroupGameState.TACTICAL_EXECUTION);
+
+                        logic.vehicleGroupStateMap.put(GFHTAI, VehicleTypeState.ATTACK);
+                        logic.vehicleGroupStateMap.put(GIAT, VehicleTypeState.ATTACK);
                     }
-                    logic.createTypeGroup(TANK, GT);
-                    logic.createTypeGroup(HELICOPTER, GH);
-                    logic.createTypeGroup(FIGHTER, GF);
-                    logic.createTypeGroup(ARRV, GA);
-                    logic.createTypeGroup(IFV, GI);
-                    if (logic.facilityMap.isEmpty()) gameState = GameState.ORDER_POSITIONING;
                     else {
-                        gameState = GameState.FACILITY_ORDERS;
-                        groups = new HashSet<>(Arrays.asList(GA, GT, GI));
+                        logic.createTypeGroup(TANK, GT);
+                        logic.createTypeGroup(HELICOPTER, GH);
+                        logic.createTypeGroup(FIGHTER, GF);
+                        logic.createTypeGroup(ARRV, GA);
+                        logic.createTypeGroup(IFV, GI);
+                        int[] typedGroups = new int[]{GF, GH, GA, GT, GI};
+                        for (int id : typedGroups) {
+                            groupGameStateMap.put(id, GroupGameState.WAIT_COMMAND_FINISH);
+                            logic.vehicleGroupStateMap.put(id, VehicleTypeState.ATTACK);
+                        }
+                        gameState = GameState.ORDER_ARIAL_POSITIONING;
+                        groupTypesMap.put(GH, EnumSet.of(HELICOPTER));
+                        groupTypesMap.put(GF, EnumSet.of(FIGHTER));
+                        groupTypesMap.put(GT, EnumSet.of(TANK));
+                        groupTypesMap.put(GA, EnumSet.of(ARRV));
+                        groupTypesMap.put(GI, EnumSet.of(IFV));
                     }
                     break;
-                case ORDER_POSITIONING:
-                    boolean arial = false, ground = false;
+                case ORDER_ARIAL_POSITIONING:
+                    boolean orderArial = false;
                     if (logic.sum(vu, StrategyLogic.ARIAL_TYPES).zero()) {
                         if (logic.vehicleTypeStateMap.get(FIGHTER) == VehicleTypeState.MOVING) {
                             ars = logic.sOfVT(StrategyLogic.ARIAL_TYPES);
@@ -125,9 +127,33 @@ public final class MyStrategy implements Strategy {
                             if (ggs[0] == GroupOrderState.NX) logic.gatheredHorizontally.put(GFH, true);
                             else if (ggs[0] == GroupOrderState.NY) logic.gatheredHorizontally.put(GFH, false);
                             Rectangle[] rectangles = logic.sOfVT(StrategyLogic.ARIAL_TYPES);
-                            arial = logic.gatherAG(5, ggs, 0, rectangles);
+                            orderArial = logic.gatherAG(5, ggs, 0, rectangles);
                         }
                     }
+                    if (!logic.facilityMap.isEmpty()) {
+                        if (groups.isEmpty()) {
+                            Rectangle[] rectangles = logic.sOfVG(GA, GT, GI);
+                            groups = new HashSet<>(Arrays.asList(GA, GT, GI));
+                            for (int id : groups) {
+                                logic.captureNearestFactory(id, Arrays.asList(rectangles));
+                            }
+                        } else {
+                            extractNextMoves();
+                        }
+                        if (orderArial) {
+                            gameState = GameState.TACTICAL_EXECUTION_FACILITIES;
+                            logic.groupPositioningMoves.computeIfAbsent(GFH, k -> new LinkedList<>());
+                            groups.add(GFH);
+                        }
+                        break;
+                    }
+                case ORDER_POSITIONING:
+                    boolean arial = false;
+                    if (logic.facilityMap.isEmpty()) {
+                        Rectangle[] rectangles = logic.sOfVT(StrategyLogic.ARIAL_TYPES);
+                        arial = logic.gatherAG(5, ggs, 0, rectangles);
+                    }
+                    boolean ground = false;
                     if (logic.sum(vu, StrategyLogic.GROUND_TYPES).zero()) {
                         nextMove = logic.positioningMoves.poll();
                         if (nextMove == null) ground = true;
@@ -177,13 +203,6 @@ public final class MyStrategy implements Strategy {
                         }
                     }
                     break;
-                case FACILITY_ORDERS:
-                    Rectangle[] rectangles = logic.sOfVG(GA, GT, GI);
-                    for (int id : groups) {
-                        logic.captureNearestFactory(id, rectangles);
-                    }
-                    gameState = GameState.TACTICAL_EXECUTION_FACILITIES;
-                    break;
                 case TACTICAL_EXECUTION:
                     double evRaS = Arrays.stream(logic.sOfVT(logic.eV(), StrategyLogic.ARIAL_TYPES)).filter(Rectangle::nonIsNaN).mapToDouble(Rectangle::square).sum();
                     double evRgS = Arrays.stream(logic.sOfVT(logic.eV(), StrategyLogic.GROUND_TYPES)).filter(Rectangle::nonIsNaN).mapToDouble(Rectangle::square).sum();
@@ -231,6 +250,15 @@ public final class MyStrategy implements Strategy {
                 case TACTICAL_EXECUTION_FACILITIES:
                     Facility[] facilities = world.getFacilities();
                     Rectangle[] evR = logic.sOfVG(FACILITY_GROUPS);
+                    Map<Integer, Accumulator> accumulatorMap = new HashMap<>();
+                    logic.mV().flatMap(v -> v.gs.stream()).forEach(gid -> accumulatorMap.computeIfAbsent(gid, k -> new Accumulator()).inc());
+                    for (Map.Entry<Integer, Accumulator> entry : accumulatorMap.entrySet()) {
+                        if (entry.getValue().zero()) {
+                            manufacturedEmptyGroupIds.add(entry.getKey());
+                            groups.remove(entry.getKey());
+                            logic.groupPositioningMoves.remove(entry.getKey());
+                        }
+                    }
                     F:for (Facility facility : facilities) {
                         if (facility.getOwnerPlayerId() != me.getId()) continue;
                         if (facility.getType() == FacilityType.CONTROL_CENTER) continue;
@@ -238,40 +266,45 @@ public final class MyStrategy implements Strategy {
                         for (Rectangle anEvR : evR) {
                             if (anEvR.intersects(facilityRect)) continue F;
                         }
-                        if (logic.mV().filter(v -> v.gs.isEmpty() && facilityRect.include(v.x(), v.y())).count() > 30) {
-                            VehicleTick ep = logic.cEP(facilityRect.c());
-                            logic.addNextMove(MoveBuilder.c(CLEAR_AND_SELECT).setRect(facilityRect));
-                            logic.addNextMove(MoveBuilder.c(MOVE).dfCToXY(facilityRect, ep.x(), ep.y()));
-                        }
-                    }
+                        if (logic.mV().filter(v -> v.gs.isEmpty() && facilityRect.include(v.x(), v.y())).count() > 50) {
+                            logic.addNextMove(MoveBuilder.c(CLEAR_AND_SELECT).setRect(facilityRect).vehicleType(TANK));
+                            Iterator<Integer> it = manufacturedEmptyGroupIds.iterator();
+                            int gid;
+                            if (it.hasNext()) {
+                                gid = it.next();
+                                it.remove();
+                            } else gid = manufacturedGroupIndex++;
+                            logic.addNextMove(MoveBuilder.c(ASSIGN).group(gid));
+                            groups.add(gid);
+                            groupGameStateMap.put(gid, GroupGameState.WAIT_COMMAND_FINISH);
+                            groupTypesMap.put(gid, EnumSet.of(TANK));
+                            logic.groupPositioningMoves.computeIfAbsent(gid, k -> new LinkedList<>());
 
-                    for (Integer gid : groups) {
-                        if (logic.accGroups(logic.groupUpdates, gid).zero()) {
-                            Queue<MoveBuilder> mb = logic.groupPositioningMoves.get(gid);
-                            nextMove = mb.poll();
-                            if (nextMove != null) {
-                                logic.addNextMove(nextMove);
-                                if (move.getAction() == CLEAR_AND_SELECT)
-                                    logic.addNextMove(mb.poll());
-                                groupGameStateMap.put(gid, GroupGameState.WAIT_COMMAND_FINISH);
-                            }
                         }
                     }
+                    extractNextMoves();
                     break;
             }
 
             if (logic.moves.isEmpty()) {
                 logic.setupNuclearStrike();
-                Rectangle[] rectangles = logic.sOfVG(GA, GT, GI);
+                List<Rectangle> rectangles = new ArrayList<>(Arrays.asList(logic.sOfVG(groups)));
+                for (Facility facility : logic.facilityMap.values()) {
+                    if (facility.getOwnerPlayerId() == me.getId()) {
+                        rectangles.add(new Rectangle(facility));
+                    }
+                }
+                int[][] otherGroups = rectangles.stream().map(Rectangle::c)
+                        .map(pt -> pt.inWorld(logic.world, logic.factor)).toArray(value -> new int[value][2]);
                 for (Integer gid : groups) {
                     GroupGameState groupGameState = groupGameStateMap.get(gid);
                     Queue<MoveBuilder> mb = logic.groupPositioningMoves.get(gid);
                     switch (groupGameState) {
                         case TACTICAL_EXECUTION:
-                            int captured = gid >= GPH ? 1 : logic.captureNearestFactory(gid, rectangles);
+                            int captured = CAPTURING_GROUPS.contains(gid) ? logic.captureNearestFactory(gid, rectangles) : 1;
                             if (captured > 0) {
                                 VehicleTick ep = logic.cEP(gid == GFH, gid);
-                                if (ep == null) return;
+                                if (ep == null) continue;
                                 Rectangle rectangle = logic.sOfVG(gid)[0];
                                 if (logic.myVehicleReadyAttack(gid) < 60) {
                                     Line line = new Line(new P2D(ep.x(), ep.y()), new P2D(rectangle.cX(), rectangle.cY()));
@@ -281,13 +314,14 @@ public final class MyStrategy implements Strategy {
                                             Math.min(angle, angle2) > PI / 4 && rectangle.rotation(world.getWidth(), world.getHeight())) {
                                         logic.scaleGroup(1.2, rectangle.cX(), rectangle.cY(), rectangle.speed, gid);
                                         logic.rotateGroup(rectangle.g, Math.min(angle, angle2) - PI / 4, rectangle.cX(), rectangle.cY(), rectangle.speed);
-                                        groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
                                     } else {
                                         if (logic.vehicleGroupStateMap.get(gid) == VehicleTypeState.ROTATING)
                                             logic.scaleGroup(.8, rectangle.cX(), rectangle.cY(), rectangle.speed, gid);
-                                        if (!logic.makeTacticalGroupMove(gid, ep.x(), ep.y(), rectangle.speed,
-                                                logic.sum(vu, groupTypesMap.get(gid)).value)) {
-                                            groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
+                                        if (groupTypesMap.get(gid).contains(FIGHTER) || groupTypesMap.get(gid).contains(HELICOPTER)) {
+                                            logic.makeTacticalGroupMove(gid, ep.x(), ep.y(), rectangle.speed,
+                                                    logic.sum(vu, groupTypesMap.get(gid)).value);
+                                        } else {
+                                            logic.makeGroudTacticalGroupMove(gid, ep.x(), ep.y(), rectangle, otherGroups);
                                         }
                                     }
                                 } else {
@@ -295,9 +329,8 @@ public final class MyStrategy implements Strategy {
                                         logic.scaleGroup(.8, rectangle.cX(), rectangle.cY(), rectangle.speed, gid);
                                     logic.vehicleGroupStateMap.put(gid, VehicleTypeState.ATTACK);
                                 }
-                            } else {
-                                groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
                             }
+                            groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
                             break;
                         case WAIT_COMMAND_FINISH:
                             if ((mb == null || mb.isEmpty()) && logic.accGroups(logic.groupUpdates, gid).zero())
@@ -341,6 +374,21 @@ public final class MyStrategy implements Strategy {
             if (DEBUG) System.out.print(world.getTickIndex() + " ");
             if (DEBUG) System.out.println(nextMove);
             nextMove.setMove(move);
+        }
+    }
+
+    private void extractNextMoves() {
+        for (Integer gid : groups) {
+            if (logic.accGroups(logic.groupUpdates, gid).zero()) {
+                Queue<MoveBuilder> mb = logic.groupPositioningMoves.get(gid);
+                MoveBuilder nextMove = mb.poll();
+                if (nextMove != null) {
+                    logic.addNextMove(nextMove);
+                    if (nextMove.isSelect())
+                        logic.addNextMove(mb.poll());
+                    groupGameStateMap.put(gid, MyStrategy.GroupGameState.WAIT_COMMAND_FINISH);
+                }
+            }
         }
     }
 }
