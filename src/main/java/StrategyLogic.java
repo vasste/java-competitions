@@ -24,6 +24,7 @@ public class StrategyLogic {
     TerrainType[][] terrainTypes;
     final Map<Long, VehicleTick> mVById = new HashMap<>();
     final Map<Long, VehicleTick> eVById = new HashMap<>();
+    List<VehicleTick> eVSortedByPointZero;
     final Map<VehicleType, Accumulator> vehicles = new HashMap<>();
     Queue<MoveBuilder> moves = new LinkedList<>();
     Map<Integer, P2D> vGd = new HashMap<>();
@@ -81,7 +82,15 @@ public class StrategyLogic {
     }
 
 
-    int captureNearestFactory(int gid, List<Rectangle> rectangles) {
+    int captureNearestFactory(int gid, List<Rectangle> rectangles, List<Rectangle> facilities) {
+        int[][] gpt = rectangles.stream().map(Rectangle::c)
+                .map(pt -> pt.inWorld(world, factor)).toArray(value -> new int[value][2]);
+        int[][] fpt = facilities.stream().map(Rectangle::c)
+                .map(pt -> pt.inWorld(world, factor)).toArray(value -> new int[value][2]);
+        return captureNearestFactory(gid, gpt, fpt);
+    }
+
+    int captureNearestFactory(int gid, int[][] gpt, int[][] fpt) {
         groupPositioningMoves.computeIfAbsent(gid, k -> new LinkedList<>());
         if (facilityMap.isEmpty()) return 0;
 
@@ -94,7 +103,7 @@ public class StrategyLogic {
             if (facility.getOwnerPlayerId() == me.getId()) mine++;
             if (facilityGroupNext.containsKey(facility.getId())) mine++;
             Rectangle facilityRectangle = new Rectangle(facility);
-            if (rectangle.dfct(facilityRectangle) < 25) {
+            if (rectangle.dfct(facilityRectangle) < 1) {
                 overFacility = facility;
                 if (facility.getOwnerPlayerId() == me.getId()) {
                     setupUnitProduction(facility, gid);
@@ -109,9 +118,6 @@ public class StrategyLogic {
         }
 
         Rectangle facilityRect = Optional.ofNullable(overFacility).map(Rectangle::new).orElse(new Rectangle(0, 0,0,0));
-        int[][] gpt = rectangles.stream().map(Rectangle::c)
-                .filter(pt -> P2D.distanceTo(pt, facilityRect.c()) > .5)
-                .map(pt -> pt.inWorld(world, factor)).toArray(value -> new int[value][2]);
         long minRouteFactoryId = 0;
         Stack<FactoriesRoute.N> minRoute = null;
         int[] ij = rectangle.c().inWorld(world, factor);
@@ -119,13 +125,16 @@ public class StrategyLogic {
             minRouteFactoryId = groupNextFacility.get(gid).getId();
             Facility to = facilityMap.get(minRouteFactoryId);
             FactoriesRoute routes = new FactoriesRoute(worldSpeedFactors, ij[0], ij[1],
-                    U.PALE_SIDE / factor, U.PALE_SIDE / factor, 1, gpt);
+                    U.PALE_SIDE / factor, U.PALE_SIDE / factor, 1, gpt, fpt, facilityRect.c().inWorld(world, factor));
             int[] tij = new P2D(to.getLeft(), to.getTop()).inWorld(world, factor);
             minRoute = routes.pathTo(tij[0], tij[1], worldSpeedFactors[tij[0]][tij[1]][1]);
-        } else {
-            FactoriesRoute routes =
-                    new FactoriesRoute(worldSpeedFactors, ij[0], ij[1],
-                            U.PALE_SIDE / factor, U.PALE_SIDE / factor, 1, gpt);
+            if (minRoute.isEmpty()) {
+                groupNextFacility.remove(gid);
+            }
+        }
+        if (minRoute == null || minRoute.isEmpty()) {
+            FactoriesRoute routes = new FactoriesRoute(worldSpeedFactors, ij[0], ij[1],
+                    U.PALE_SIDE / factor, U.PALE_SIDE / factor, 1, gpt, fpt, facilityRect.c().inWorld(world, factor));
             double minCost = Double.MAX_VALUE;
             for (Long fid : facilityMap.keySet()) {
                 if (facilityGroupNext.containsKey(fid)) continue;
@@ -148,7 +157,7 @@ public class StrategyLogic {
             return moveToNextFacility(gid, rectangle, minRoute, facility);
         }
 
-        return facilityMap.size() == mine ? 1 : 0;
+        return facilityMap.size() <= mine ? 1 : 0;
     }
 
     private void moveToNext(int gid, Rectangle rectangle, Stack<FactoriesRoute.N> minRoute) {
@@ -333,13 +342,15 @@ public class StrategyLogic {
                 eVById.computeIfPresent(vu.getId(), (key, vehicle) -> new VehicleTick(vehicle, vu, world.getTickIndex(), world));
             }
         }
+        eVSortedByPointZero = new ArrayList<>(eVById.values());
+        Collections.sort(eVSortedByPointZero, Comparator.comparingDouble(o -> P2D.distanceTo(new P2D(o), P2D.Z)));
         return vehicleUpdates;
     }
 
-    boolean protectGround(int arial, int ground) {
+    boolean protectGround(int arial, int ground, double range) {
         Rectangle srs = OfVG(arial);
         Rectangle drs = OfVG(ground);
-        if (srs.dfct(drs) > U.EPS) {
+        if (srs.dfct(drs) > range) {
             makeGroupMove(arial, srs, drs.cX(), drs.cY(), 0, true);
             return true;
         }
@@ -409,33 +420,30 @@ public class StrategyLogic {
         return attack;
     }
 
-    void setupNuclearStrike() {
-        if (me.getNextNuclearStrikeTickIndex() > 0 || me.getRemainingNuclearStrikeCooldownTicks() > 0) return;
-        Rectangle.Builder vRB = new Rectangle.Builder();
-        for (VehicleTick fv : (Iterable<VehicleTick>) mVt(FIGHTER, HELICOPTER)::iterator) {
-            vRB.combine(fv.see(game, world, weatherTypes, terrainTypes));
-        }
-
-        Rectangle vR = vRB.build();
+    boolean setupNuclearStrike(int gid) {
+        if (me.getNextNuclearStrikeTickIndex() > 0 || me.getRemainingNuclearStrikeCooldownTicks() > 0) return false;
         VehicleTick eVns = null;
         VehicleTick cff = null;
-        for (VehicleTick eV : (Iterable<VehicleTick>) eV().filter(v -> vR.include(v.x(), v.y()))::iterator) {
-            for (VehicleTick mV : (Iterable<VehicleTick>) mVt(FIGHTER, HELICOPTER)::iterator) {
-                if (mV.see(eV, game, weatherTypes, terrainTypes)) {
-                    if (eVns == null) {
-                        eVns = eV;
-                        cff = mV;
-                    }
-                    if (eVns.compareTo(eV) < 0) {
-                        eVns = eV;
-                        cff = mV;
-                    }
+        for (VehicleTick mV : (Iterable<VehicleTick>) mVg(gid)::iterator) {
+            int i = Collections.binarySearch(eVSortedByPointZero, mV, Comparator.comparingDouble(o -> P2D.distanceTo(new P2D(o), P2D.Z)));
+            if (i < 0) i = -i - 1;
+            VehicleTick eV = eVSortedByPointZero.get(Math.max(eVSortedByPointZero.size() - 1, i));
+            if (mV.see(eV, game, weatherTypes, terrainTypes)) {
+                if (eVns == null) {
+                    eVns = eV;
+                    cff = mV;
+                }
+                if (eVns.compareTo(eV) < 0) {
+                    eVns = eV;
+                    cff = mV;
                 }
             }
         }
         if (eVns != null) {
-            moves.add(new MoveBuilder(TACTICAL_NUCLEAR_STRIKE).vehicleId(cff.id()).x(eVns.x()).y(eVns.y()));
+            groupPositioningMoves.get(gid).add(new MoveBuilder(TACTICAL_NUCLEAR_STRIKE).vehicleId(cff.id()).x(eVns.x()).y(eVns.y()));
+            return true;
         }
+        return false;
     }
 
     boolean makeTacticalGroupMove(int id, double x, double y, double ms, long updates) {
@@ -472,7 +480,7 @@ public class StrategyLogic {
         }
     }
 
-    void makeGroudTacticalGroupMove(int id, double x, double y, Rectangle rectangle, int[][] otherGroups) {
+    void makeGroundTacticalGroupMove(int id, double x, double y, Rectangle rectangle, int[][] gpt, int[][] fpt) {
         vehicleGroupStateMap.put(id, MyStrategy.VehicleTypeState.MOVING);
         if (rectangle.include(x, y) && rectangle.square() > 25_000) {
             scaleGroup(0.8, rectangle.cX(), rectangle.cX(), rectangle.speed, id);
@@ -480,10 +488,13 @@ public class StrategyLogic {
             int[] ij = rectangle.c().inWorld(world, factor);
             FactoriesRoute routes =
                     new FactoriesRoute(worldSpeedFactors, ij[0], ij[1],
-                            U.PALE_SIDE / factor, U.PALE_SIDE / factor, 1, otherGroups);
+                            U.PALE_SIDE / factor, U.PALE_SIDE / factor, 1, gpt, fpt, new int[]{0, 0});
             int[] tij = new P2D(x, y).inWorld(world, factor);
             Stack<FactoriesRoute.N> route = routes.pathTo(tij[0], tij[1], worldSpeedFactors[tij[0]][tij[1]][1]);
             moveToNext(id, rectangle, route);
+            if (route.empty()) {
+                makeTacticalGroupMove(id, x, y, rectangle.speed, 0);
+            }
         }
     }
 
@@ -498,7 +509,7 @@ public class StrategyLogic {
 
     void makeGroupMove(int id, Rectangle groupRectangle, double x, double y, double ms, boolean select) {
         if (select) moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
-        moves.add(MoveBuilder.c(MOVE).dfCToXY(groupRectangle, x, y).maxSpeed(ms));
+        groupPositioningMoves.get(id).add(MoveBuilder.c(MOVE).dfCToXY(groupRectangle, x, y).maxSpeed(ms));
     }
 
     void positionGroup(VehicleType vehicleType, Rectangle rectangle, boolean vertically, boolean horizontally, double factor) {

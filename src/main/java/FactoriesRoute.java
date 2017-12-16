@@ -16,7 +16,7 @@ public class FactoriesRoute {
     public boolean[] noEdges;
 
     public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti,
-                          int[][] otherGroups) {
+                          int[][] otherGroups, int[][] facility, int[] excludeFacility) {
         this.width = width;
         this.height = height;
         int titles = width * height;
@@ -41,6 +41,12 @@ public class FactoriesRoute {
                             if (adj.contains(n))
                                 noEdges[n.index()] = true;
                         }
+                    }
+                }
+                for (int k = 0; k < facility.length; k++) {
+                    if (excludeFacility[0] == facility[k][0] && facility[k][1] == excludeFacility[1]) continue;
+                    if (jx == facility[k][0] && jy == facility[k][1]) {
+                        noEdges[j] = true;
                     }
                 }
             }
