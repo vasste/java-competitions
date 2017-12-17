@@ -16,7 +16,7 @@ public class FactoriesRoute {
     public boolean[] noEdges;
 
     public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti,
-                          int[][] otherGroups, int[][] facility, int[] excludeFacility) {
+                          int[][] otherGroups, int[][] facility, int[] excludeFacility, int[][] emp) {
         this.width = width;
         this.height = height;
         int titles = width * height;
@@ -47,6 +47,14 @@ public class FactoriesRoute {
                     if (excludeFacility[0] == facility[k][0] && facility[k][1] == excludeFacility[1]) continue;
                     if (jx == facility[k][0] && jy == facility[k][1]) {
                         noEdges[j] = true;
+                    }
+                }
+                for (int k = 0; k < emp.length; k++) {
+                    if (jx == emp[k][0] && jy == emp[k][1]) {
+                        noEdges[j] = true;
+                        for (N n : evaluateNeighbours(new N(jx, jy,0, width))) {
+                            noEdges[n.index()] = true;
+                        }
                     }
                 }
             }
@@ -121,6 +129,11 @@ public class FactoriesRoute {
         int x, y;
         double cost;
         int width;
+
+        public N(int[] xy) {
+            this.x = xy[0];
+            this.y = xy[1];
+        }
 
         public N(int x, int y, double cost, int width) {
             this.x = x;

@@ -3,6 +3,8 @@ import model.Unit;
 import model.Vehicle;
 import model.World;
 
+import java.util.Objects;
+
 import static java.lang.StrictMath.hypot;
 import static java.lang.StrictMath.min;
 import static java.lang.StrictMath.round;
@@ -70,6 +72,20 @@ public class P2D implements Comparable<P2D> {
             if (ix == 0) return U.cD(y, o.y);
             return ix;
         } else return is;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        P2D p2D = (P2D) o;
+        return Double.compare(p2D.x, x) == 0 &&
+                Double.compare(p2D.y, y) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(x, y);
     }
 
     boolean less(P2D p) { return compareTo(p) < 0; }
