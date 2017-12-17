@@ -13,7 +13,7 @@ public final class MyStrategyRunner {
                 new Thread(() -> {
                     try {
                         MyStrategyRunner runner =
-                                new MyStrategyRunner(args.length == 3 ? args : new String[] {"127.0.0.1", "31001", "0000000000000000"});
+                                new MyStrategyRunner(args.length == 3 ? args : new String[] {"127.0.0.1", "31002", "0000000000000000"});
                         runner.run(new MyStrategy());
                     } catch (IOException e) {
                         e.printStackTrace();
