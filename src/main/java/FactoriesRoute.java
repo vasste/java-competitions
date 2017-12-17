@@ -16,7 +16,14 @@ public class FactoriesRoute {
     public boolean[] noEdges;
 
     public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti,
-                          int[][] otherGroups, int[][] facility, int[] excludeFacility, int[][] emp) {
+                          int[][] otherGroups, int[][] facility, int[][] excludeFacility, int[][] emp) {
+        this(worldSpeedFactor, sx, sy, width, height, vti, otherGroups, facility, excludeFacility, emp, true,
+                new int[][]{new int[]{sx, sy}});
+    }
+
+    public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti,
+                          int[][] otherGroups, int[][] facility, int[][] excludeFacility, int[][] emp,
+                          boolean excludeAdj, int[][] currentGroup) {
         this.width = width;
         this.height = height;
         int titles = width * height;
@@ -31,29 +38,38 @@ public class FactoriesRoute {
                 int iy = i/width;
                 int ix = i - iy*width;
                 edges[i][j] += worldSpeedFactor[jx][jy][vti] + worldSpeedFactor[ix][iy][vti];
-                for (int k = 0; k < otherGroups.length; k++) {
-                    if (sx == otherGroups[k][0] && sy == otherGroups[k][1]) {
-                        continue;
+                G: for (int[] otherGroup : otherGroups) {
+                    if (sx == otherGroup[0] && sy == otherGroup[1]) continue;
+                    for (int[] xy : currentGroup) {
+                        if (xy[0] == otherGroup[0] && xy[1] == otherGroup[1]) continue G;
                     }
-                    if (jx == otherGroups[k][0] && jy == otherGroups[k][1]) {
+                    if (jx == otherGroup[0] && jy == otherGroup[1]) {
                         noEdges[j] = true;
-                        for (N n : evaluateNeighbours(new N(jx, jy,0, width))) {
-                            if (adj.contains(n))
-                                noEdges[n.index()] = true;
+                        if (excludeAdj) {
+                            for (N n : evaluateNeighbours(new N(jx, jy, 0, width))) {
+                                if (adj.contains(n))
+                                    noEdges[n.index()] = true;
+                            }
                         }
                     }
                 }
-                for (int k = 0; k < facility.length; k++) {
-                    if (excludeFacility[0] == facility[k][0] && facility[k][1] == excludeFacility[1]) continue;
-                    if (jx == facility[k][0] && jy == facility[k][1]) {
+                FI:
+                for (int[] fpt : facility) {
+                    for (int l = 0; l < excludeFacility.length; l++) {
+                        if (excludeFacility[l][0] == fpt[0] && fpt[1] == excludeFacility[l][1])
+                            continue FI;
+                    }
+                    if (jx == fpt[0] && jy == fpt[1]) {
                         noEdges[j] = true;
                     }
                 }
                 for (int k = 0; k < emp.length; k++) {
                     if (jx == emp[k][0] && jy == emp[k][1]) {
                         noEdges[j] = true;
-                        for (N n : evaluateNeighbours(new N(jx, jy,0, width))) {
-                            noEdges[n.index()] = true;
+                        if (excludeAdj) {
+                            for (N n : evaluateNeighbours(new N(jx, jy, 0, width))) {
+                                noEdges[n.index()] = true;
+                            }
                         }
                     }
                 }

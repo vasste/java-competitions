@@ -1,8 +1,10 @@
 import model.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.lang.Math.PI;
+import static java.lang.Math.min;
 import static model.ActionType.ASSIGN;
 import static model.ActionType.CLEAR_AND_SELECT;
 import static model.VehicleType.*;
@@ -32,9 +34,6 @@ public final class MyStrategy implements Strategy {
     public static final int GA  = 7;
     public static final int GT  = 8;
     public static final int GI  = 9;
-
-    static final int[] FACILITY_GROUPS = new int[]{GA, GT, GI};
-    static Set<Integer> CAPTURING_GROUPS = new HashSet<>(Arrays.asList(GA, GT, GI));
 
     int manufacturedGroupIndex = 11;
     Set<Integer> manufacturedEmptyGroupIds = new HashSet<>();
@@ -249,7 +248,7 @@ public final class MyStrategy implements Strategy {
                     break;
                 case TACTICAL_EXECUTION_FACILITIES:
                     Facility[] facilities = world.getFacilities();
-                    Rectangle[] evR = logic.sOfVG(FACILITY_GROUPS);
+                    Rectangle[] evR = logic.sOfVG(groups);
                     Map<Integer, Accumulator> accumulatorMap = new HashMap<>();
                     logic.mV().flatMap(v -> v.gs.stream()).forEach(gid -> accumulatorMap.computeIfAbsent(gid, k -> new Accumulator()).inc());
                     Iterator<Integer> git = groups.iterator();
@@ -261,18 +260,17 @@ public final class MyStrategy implements Strategy {
                             logic.groupPositioningMoves.remove(gid);
                         }
                     }
-                    groups.addAll(accumulatorMap.keySet());
                     for (Integer group : groups) {
                         logic.groupPositioningMoves.computeIfAbsent(group, k -> new LinkedList<>());
                     }
                     F:for (Facility facility : facilities) {
-                        if (facility.getOwnerPlayerId() != me.getId()) continue;
-                        if (facility.getType() == FacilityType.CONTROL_CENTER) continue;
+                        if (!logic.mine(facility) || facility.getType() == FacilityType.CONTROL_CENTER) continue;
                         Rectangle facilityRect = new Rectangle(facility);
                         for (Rectangle anEvR : evR) {
                             if (anEvR.intersects(facilityRect)) continue F;
                         }
-                        if (logic.mV().filter(v -> v.gs.isEmpty() && facilityRect.include(v.x(), v.y())).count() > 20) {
+                        logic.setupUnitProduction(facility);
+                        if (logic.mV().filter(v -> facilityRect.include(v.x(), v.y())).count() > 40) {
                             logic.addNextMove(MoveBuilder.c(CLEAR_AND_SELECT).setRect(facilityRect).vehicleType(TANK));
                             Iterator<Integer> it = manufacturedEmptyGroupIds.iterator();
                             int gid;
@@ -292,29 +290,39 @@ public final class MyStrategy implements Strategy {
                     break;
             }
 
-            boolean setupNuclearStrike = false;
             if (logic.moves.isEmpty()) {
-                int[][] gpt = Arrays.stream(logic.sOfVG(groups)).map(Rectangle::c)
+                logic.setupNuclearStrike();
+                int[][] gpt = logic.vehicleMap(logic.mV());
+                int[][] fpt = logic.facilityMap.values().stream().filter(logic::mine).flatMap(f -> Arrays.stream(logic.facilityPoints(f)))
                         .map(pt -> pt.inWorld(logic.world, logic.factor)).toArray(value -> new int[value][2]);
-                int[][] fpt = logic.facilityMap.values().stream().filter(f -> f.getOwnerPlayerId() == me.getId()).map(Rectangle::new)
-                        .map(Rectangle::c).map(pt -> pt.inWorld(logic.world, logic.factor)).toArray(value -> new int[value][2]);
-                int[][] empt = logic.enemyMap();
+                int[][] empt = logic.vehicleMap(logic.eV());
+                Set<FactoriesRoute.N> aRpt = Arrays.stream(logic.vehicleMap(logic.eVt(StrategyLogic.ARIAL_TYPES)))
+                        .map(FactoriesRoute.N::new).collect(Collectors.toSet());
+                Set<FactoriesRoute.N> gRpt = Arrays.stream(logic.vehicleMap(logic.eVt(StrategyLogic.GROUND_TYPES)))
+                        .map(FactoriesRoute.N::new).collect(Collectors.toSet());
+                double matches = 0.0;
+                for (FactoriesRoute.N a : max(aRpt, gRpt)) {
+                    if (max(gRpt, aRpt).contains(a)) matches++;
+                }
+                boolean arialProtectsGround = matches / max(aRpt, gRpt).size() > .5;
                 for (Integer gid : groups) {
                     GroupGameState groupGameState = groupGameStateMap.get(gid);
                     Queue<MoveBuilder> mb = logic.groupPositioningMoves.get(gid);
-                    if (!setupNuclearStrike) setupNuclearStrike = logic.setupNuclearStrike(gid);
                     switch (groupGameState) {
                         case TACTICAL_EXECUTION:
-                            int captured = gid == GFH ? 1 : logic.captureNearestFactory(gid, gpt, fpt, empt);
+                            Rectangle rectangle = logic.sOfVG(gid)[0];
+                            if (rectangle.square() > 25_000)
+                                logic.scaleGroup(0.8, rectangle.cX(), rectangle.cX(), rectangle.speed, gid);
+                            int captured = !arialProtectsGround && gid == GFH ? 1 : logic.captureNearestFactory(gid, gpt, fpt, empt);
                             if (captured > 0) {
-                                VehicleTick ep = logic.cEP(gid == GFH, gid);
+                                P2D ep = logic.cEP(gid == GFH, gid);
                                 if (ep == null) {
                                     ep = logic.cEP(false, gid);
-                                    if (ep == null) continue;
+                                    if (ep == null) ep = new P2D(logic.random.nextInt((int)world.getWidth()),
+                                            (int)world.getHeight());
                                 }
-                                Rectangle rectangle = logic.sOfVG(gid)[0];
                                 if (logic.myVehicleReadyAttack(gid) < 60) {
-                                    Line line = new Line(new P2D(ep.x(), ep.y()), new P2D(rectangle.cX(), rectangle.cY()));
+                                    Line line = new Line(ep, new P2D(rectangle.cX(), rectangle.cY()));
                                     double angle = Line.angle(line, rectangle.sightLines()[0]);
                                     double angle2 = Line.angle(line, rectangle.sightLines()[1]);
                                     if (logic.facilityMap.isEmpty() && logic.vehicleGroupStateMap.get(gid) != VehicleTypeState.ROTATING &&
@@ -325,23 +333,23 @@ public final class MyStrategy implements Strategy {
                                         if (logic.vehicleGroupStateMap.get(gid) == VehicleTypeState.ROTATING)
                                             logic.scaleGroup(.8, rectangle.cX(), rectangle.cY(), rectangle.speed, gid);
                                         if (groupTypesMap.get(gid).contains(FIGHTER) || groupTypesMap.get(gid).contains(HELICOPTER)) {
-                                            logic.makeTacticalGroupMove(gid, ep.x(), ep.y(), rectangle.speed);
+                                            logic.makeTacticalGroupMove(gid, ep.x, ep.y, rectangle.speed);
                                         } else {
-                                            logic.makeGroundTacticalGroupMove(gid, ep.x(), ep.y(), rectangle, gpt, fpt);
+                                            logic.makeGroundTacticalGroupMove(gid, ep.x, ep.y, rectangle, gpt, fpt);
                                         }
                                     }
                                 } else {
                                     logic.vehicleGroupStateMap.put(gid, VehicleTypeState.ATTACK);
                                 }
                             }
-                            if (gid != GFH) groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
+                            if (arialProtectsGround || gid != GFH) groupGameState = GroupGameState.WAIT_COMMAND_FINISH;
                             break;
                         case WAIT_COMMAND_FINISH:
                             if ((mb == null || mb.isEmpty()) && logic.accGroups(logic.groupUpdates, gid).zero())
                                 groupGameState = GroupGameState.TACTICAL_EXECUTION;
                             break;
                         case NUCLEAR_STRIKE:
-                            Rectangle rectangle = logic.sOfVG(gid)[0];
+                            rectangle = logic.sOfVG(gid)[0];
                             Player enemy = logic.enemy;
                             double y = enemy.getNextNuclearStrikeY();
                             double x = enemy.getNextNuclearStrikeX();
@@ -379,6 +387,10 @@ public final class MyStrategy implements Strategy {
             if (DEBUG) System.out.println(nextMove);
             nextMove.setMove(move);
         }
+    }
+
+    private Set<FactoriesRoute.N> max(Set<FactoriesRoute.N> a, Set<FactoriesRoute.N> b) {
+        return a.size() > b.size() ? a : b;
     }
 
     private void extractNextMoves() {
