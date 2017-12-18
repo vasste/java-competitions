@@ -16,14 +16,14 @@ public class FactoriesRoute {
     public boolean[] noEdges;
 
     public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti,
-                          int[][] otherGroups, int[][] facility, int[][] excludeFacility, int[][] emp) {
+                          int[][] otherGroups, int[][] facility, int[][] excludeFacility, int[][] emp, int[][] dfpt) {
         this(worldSpeedFactor, sx, sy, width, height, vti, otherGroups, facility, excludeFacility, emp, true,
-                new int[][]{new int[]{sx, sy}});
+                new int[][]{new int[]{sx, sy}}, dfpt);
     }
 
     public FactoriesRoute(double[][][] worldSpeedFactor, int sx, int sy, int width, int height, int vti,
                           int[][] otherGroups, int[][] facility, int[][] excludeFacility, int[][] emp,
-                          boolean excludeAdj, int[][] currentGroup) {
+                          boolean excludeAdj, int[][] currentGroup, int[][] dfpt) {
         this.width = width;
         this.height = height;
         int titles = width * height;
@@ -63,11 +63,15 @@ public class FactoriesRoute {
                         noEdges[j] = true;
                     }
                 }
-                for (int k = 0; k < emp.length; k++) {
+                EF: for (int k = 0; k < emp.length; k++) {
                     if (jx == emp[k][0] && jy == emp[k][1]) {
+                        for (int[] aDfpt : dfpt) if (emp[k][0] == aDfpt[0] && emp[k][1] == aDfpt[1]) continue EF;
                         noEdges[j] = true;
                         if (excludeAdj) {
                             for (N n : evaluateNeighbours(new N(jx, jy, 0, width))) {
+                                for (int[] aDfpt : dfpt)
+                                    if (n.x == aDfpt[0] && n.y == aDfpt[1])
+                                        continue EF;
                                 noEdges[n.index()] = true;
                             }
                         }

@@ -315,6 +315,8 @@ public final class MyStrategy implements Strategy {
                 int[][] gpt = logic.vehicleMap(logic.mV());
                 int[][] fpt = logic.facilityMap.values().stream().filter(logic::mine).flatMap(f -> Arrays.stream(logic.facilityPoints(f)))
                         .map(pt -> pt.inWorld(logic.world, logic.factor)).toArray(value -> new int[value][2]);
+                int[][] dfpt = logic.facilityMap.values().stream().filter(logic::notMine).flatMap(f -> Arrays.stream(logic.facilityPoints(f)))
+                        .map(pt -> pt.inWorld(logic.world, logic.factor)).toArray(value -> new int[value][2]);
                 int[][] empt = logic.vehicleMap(logic.eV(), fpt);
                 Set<FactoriesRoute.N> aRpt = Arrays.stream(logic.vehicleMap(logic.eVt(StrategyLogic.ARIAL_TYPES)))
                         .map(FactoriesRoute.N::new).collect(Collectors.toSet());
@@ -334,10 +336,10 @@ public final class MyStrategy implements Strategy {
                             if (rectangle.square() > 25_000) logic.scaleGroup(0.8, rectangle.cX(), rectangle.cX(), rectangle.speed, gid);
                             int captured;
                             if (gid == GFH) {
-                                if (arialProtectsGround) captured = logic.captureNearestFactory(gid, gpt, fpt, empt);
+                                if (arialProtectsGround) captured = logic.captureNearestFactory(gid, gpt, fpt, empt, dfpt);
                                 else captured = 1;
                             } else {
-                                captured = logic.captureNearestFactory(gid, gpt, fpt, empt);
+                                captured = logic.captureNearestFactory(gid, gpt, fpt, empt, dfpt);
                             }
                             if (captured > 0) {
                                 P2D ep = logic.cEP(gid == GFH, gid);

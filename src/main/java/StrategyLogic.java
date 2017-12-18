@@ -39,7 +39,7 @@ public class StrategyLogic {
     Random random;
     double[][][] worldSpeedFactors;
     Map<Long, Facility> facilityMap = new HashMap<>();
-    Map<Integer, Long> groupFacility = new HashMap<>();
+    Map<Integer, FacilityTick> groupFacility = new HashMap<>();
     final int factor = 2;
     Map<Integer, Accumulator> groupUpdates = new HashMap<>();
     static final VehicleType[] ARIAL_TYPES = new VehicleType[]{FIGHTER, HELICOPTER};
@@ -85,7 +85,7 @@ public class StrategyLogic {
                 .map(pt -> pt.inWorld(world, factor)).toArray(value -> new int[value][2]);
         int[][] fpt = facilities.stream().map(Rectangle::c)
                 .map(pt -> pt.inWorld(world, factor)).toArray(value -> new int[value][2]);
-        return captureNearestFactory(gid, gpt, fpt, new int[0][2]);
+        return captureNearestFactory(gid, gpt, fpt, new int[0][2], new int[0][2]);
     }
 
     int[][] vehicleMap(Stream<VehicleTick> stream, int[][] exclude) {
@@ -101,10 +101,11 @@ public class StrategyLogic {
         return vehicleMap(stream, new int[0][2]);
     }
 
-    int captureNearestFactory(int gid, int[][] gpt, int[][] fpt, int[][] empt) {
+    int captureNearestFactory(int gid, int[][] gpt, int[][] fpt, int[][] empt, int[][] dfpt) {
         groupPositioningMoves.computeIfAbsent(gid, k -> new LinkedList<>());
         if (facilityMap.isEmpty()) return 1;
         groupFacility.remove(gid);
+        groupFacility.keySet().removeIf(integer -> groupFacility.get(integer).tick < world.getTickIndex() - 60);
 
         Rectangle rectangle = sOfVG(gid)[0];
 
@@ -114,7 +115,7 @@ public class StrategyLogic {
         for (Long fid : facilityMap.keySet()) {
             Facility facility = facilityMap.get(fid);
             if (mine(facility)) mine++;
-            if (groupFacility.values().contains(facility.getId())) mine++;
+            if (groupFacility.values().contains(new FacilityTick(facility.getId(), 0))) mine++;
             Rectangle facilityRectangle = new Rectangle(facility);
             if (facilityRectangle.dfct(rectangle) < 0.5) {
                 capturing |= !mine(facility);
@@ -130,11 +131,11 @@ public class StrategyLogic {
         FactoriesRoute routes = new FactoriesRoute(worldSpeedFactors, ij[0], ij[1],
                 U.PALE_SIDE / factor, U.PALE_SIDE / factor, 1, gpt, fpt,
                 Arrays.stream(facilityPoints(overFacility)).map(p -> p.inWorld(world, factor))
-                        .toArray(value -> new int[value][2]), empt, true, vehicleMap(mVg(gid)));
+                        .toArray(value -> new int[value][2]), empt, true, vehicleMap(mVg(gid)), dfpt);
         double minCost = Double.MAX_VALUE;
         for (Long fid : facilityMap.keySet()) {
             Facility facility = facilityMap.get(fid);
-            if (groupFacility.values().contains(fid)) continue;
+            if (groupFacility.values().contains(new FacilityTick(fid, 0))) continue;
             if (mine(facility)) continue;
             if (overFacility != null && overFacility.getId() == fid) continue;
             Facility to = facilityMap.get(fid);
@@ -149,7 +150,7 @@ public class StrategyLogic {
         }
         if (minRoute != null && !minRoute.isEmpty()) {
             Facility facility = facilityMap.get(minRouteFactoryId);
-            groupFacility.put(gid, facility.getId());
+            groupFacility.put(gid, new FacilityTick(facility.getId(), world.getTickIndex()));
             return moveToNextFacility(gid, rectangle, minRoute, facility);
         }
 
@@ -158,6 +159,10 @@ public class StrategyLogic {
 
     boolean mine(Facility facility) {
         return facility.getOwnerPlayerId() == me.getId() && facility.getCapturePoints() > 0;
+    }
+
+    boolean notMine(Facility facility) {
+        return facility.getOwnerPlayerId() != me.getId();
     }
 
     private void moveToNext(int gid, Rectangle rectangle, Stack<FactoriesRoute.N> minRoute, long updates) {
@@ -519,14 +524,14 @@ public class StrategyLogic {
             FactoriesRoute routes =
                     new FactoriesRoute(worldSpeedFactors, ij[0], ij[1],
                             U.PALE_SIDE / factor, U.PALE_SIDE / factor, 1, gpt, fpt,
-                            new int[0][2], new int[0][2]);
+                            new int[0][2], new int[0][2], new int[0][2]);
             int[] tij = new P2D(x, y).inWorld(world, factor);
             Stack<FactoriesRoute.N> route = routes.pathTo(tij[0], tij[1], worldSpeedFactors[tij[0]][tij[1]][1]);
             moveToNext(id, rectangle, route, groupUpdates.getOrDefault(id, Accumulator.ZERO).value);
             if (route.empty()) {
                 routes = new FactoriesRoute(worldSpeedFactors, ij[0], ij[1],
                                 U.PALE_SIDE / factor, U.PALE_SIDE / factor, 1, gpt, fpt,
-                                new int[0][2], new int[0][2], false, new int[][]{ij});
+                                new int[0][2], new int[0][2], false, new int[][]{ij}, new int[0][2]);
                 tij = new P2D(x, y).inWorld(world, factor);
                 route = routes.pathTo(tij[0], tij[1], worldSpeedFactors[tij[0]][tij[1]][1]);
                 moveToNext(id, rectangle, route, groupUpdates.getOrDefault(id, Accumulator.ZERO).value);
@@ -687,5 +692,28 @@ public class StrategyLogic {
 
     double vehicleSpeed(Game game, VehicleTick vehicle, WeatherType[][] weatherTypes, TerrainType[][] terrainTypes) {
         return vehicle.speed(game, weatherTypes, terrainTypes);
+    }
+
+    static class FacilityTick {
+        long fid;
+        int tick;
+
+        public FacilityTick(long fid, int tick) {
+            this.fid = fid;
+            this.tick = tick;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FacilityTick that = (FacilityTick) o;
+            return fid == that.fid;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(fid);
+        }
     }
 }
