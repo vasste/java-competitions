@@ -57,7 +57,6 @@ public class OrderGraph {
                     System.out.println(command);
                 }
             }
-            System.out.println();
         }
     }
 

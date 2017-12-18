@@ -2,6 +2,7 @@ import model.*;
 
 import java.util.*;
 import java.util.function.IntFunction;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -58,8 +59,7 @@ public class StrategyLogic {
             weatherTypes = world.getWeatherByCellXY();
             terrainTypes = world.getTerrainByCellXY();
         }
-
-        if (worldSpeedFactors == null && facilities.length > 0) {
+        if (worldSpeedFactors == null) {
             worldSpeedFactors = new double[(int)(world.getHeight()/U.PALE_SIDE)/factor][(int)(world.getWidth()/U.PALE_SIDE)/factor][2];
             for (int i = 0; i < worldSpeedFactors.length * factor; i++) {
                 for (int j = 0; j < worldSpeedFactors.length * factor; j++) {
@@ -88,17 +88,22 @@ public class StrategyLogic {
         return captureNearestFactory(gid, gpt, fpt, new int[0][2]);
     }
 
-    int[][] vehicleMap(Stream<VehicleTick> stream) {
+    int[][] vehicleMap(Stream<VehicleTick> stream, int[][] exclude) {
         Map<FactoriesRoute.N, Accumulator> map = new HashMap<>();
-        stream.map(P2D::new).map(pt -> new FactoriesRoute.N(pt.inWorld(world, factor)))
+        stream.map(P2D::new).map(pt -> new FactoriesRoute.N(pt.inWorld(world, factor))).
+                filter(pt -> Arrays.stream(exclude).noneMatch(xy -> xy[0] == pt.x && pt.y == xy[1]))
                 .forEach(n -> map.computeIfAbsent(n, k -> new Accumulator(0)).inc());
-        return map.entrySet().stream().filter(kv -> kv.getValue().value > 20).map(kv -> new int[]{kv.getKey().x, kv.getKey().y})
+        return map.entrySet().stream().filter(kv -> kv.getValue().value > 10).map(kv -> new int[]{kv.getKey().x, kv.getKey().y})
                 .toArray(value -> new int[value][2]);
+    }
+
+    int[][] vehicleMap(Stream<VehicleTick> stream) {
+        return vehicleMap(stream, new int[0][2]);
     }
 
     int captureNearestFactory(int gid, int[][] gpt, int[][] fpt, int[][] empt) {
         groupPositioningMoves.computeIfAbsent(gid, k -> new LinkedList<>());
-        if (facilityMap.isEmpty()) return 0;
+        if (facilityMap.isEmpty()) return 1;
         groupFacility.remove(gid);
 
         Rectangle rectangle = sOfVG(gid)[0];
@@ -111,7 +116,7 @@ public class StrategyLogic {
             if (mine(facility)) mine++;
             if (groupFacility.values().contains(facility.getId())) mine++;
             Rectangle facilityRectangle = new Rectangle(facility);
-            if (facilityRectangle.intersects(rectangle)) {
+            if (facilityRectangle.dfct(rectangle) < 0.5) {
                 capturing |= !mine(facility);
                 overFacility = facility;
             }
@@ -148,7 +153,7 @@ public class StrategyLogic {
             return moveToNextFacility(gid, rectangle, minRoute, facility);
         }
 
-        return mine == facilityMap.size() ? 1 : 0;
+        return mine >= facilityMap.size() ? 1 : 0;
     }
 
     boolean mine(Facility facility) {
@@ -166,7 +171,8 @@ public class StrategyLogic {
         if (P2D.distanceTo(fromP, dst) > .5) {
             if (updates > 0 && dst.equals(vGd.get(gid))) return;
             groupPositioningMoves.get(gid).add(MoveBuilder.c(ActionType.CLEAR_AND_SELECT).group(gid));
-            groupPositioningMoves.get(gid).add(MoveBuilder.c(ActionType.MOVE).dfCToXY(fromP, dst.x, dst.y, rectangle, world).maxSpeed(rectangle.speed));
+            groupPositioningMoves.get(gid).add(MoveBuilder.c(ActionType.MOVE).dfCToXY(fromP, dst.x, dst.y, rectangle, world).
+                    maxSpeed(0));
             vGd.put(gid, dst);
         }
     }
@@ -345,6 +351,8 @@ public class StrategyLogic {
     }
 
     boolean protectGround(int arial, int ground, double range) {
+        Queue<MoveBuilder> mb = groupPositioningMoves.get(arial);
+        if (mb != null && !mb.isEmpty()) return true;
         Rectangle srs = OfVG(arial);
         Rectangle drs = OfVG(ground);
         if (srs.dfct(drs) > range) {
@@ -401,12 +409,18 @@ public class StrategyLogic {
         eV().forEach(v -> accumulatorMap.computeIfAbsent(v.type(), t -> new Accumulator(0)).inc());
         for (VehicleTick v : (Iterable<VehicleTick>) eV()::iterator) {
             if (arial) {
-                if (accumulatorMap.getOrDefault(HELICOPTER, Accumulator.ZERO).value > 0 && v.type() != HELICOPTER) continue;
-                if (accumulatorMap.getOrDefault(FIGHTER, Accumulator.ZERO).value > 0 && v.type() != FIGHTER) continue;
-                if (accumulatorMap.getOrDefault(TANK, Accumulator.ZERO).value > 0 && v.type() != TANK) continue;
+                if (accumulatorMap.getOrDefault(HELICOPTER, Accumulator.ZERO).value > 0) {
+                    if (v.type() == HELICOPTER) ctlev = P2D.closedTo(ctlev == null ? v : ctlev, v, center);
+                    continue;
+                } else if (accumulatorMap.getOrDefault(FIGHTER, Accumulator.ZERO).value > 0) {
+                    if (v.type() == FIGHTER) ctlev = P2D.closedTo(ctlev == null ? v : ctlev, v, center);
+                    continue;
+                } else if (accumulatorMap.getOrDefault(TANK, Accumulator.ZERO).value > 0) {
+                    if (v.type() == TANK) ctlev = P2D.closedTo(ctlev == null ? v : ctlev, v, center);
+                    continue;
+                }
             }
-            if (ctlev == null) ctlev = v;
-            else ctlev = P2D.closedTo(ctlev, v, center);
+            ctlev = P2D.closedTo(ctlev == null ? v : ctlev, v, center);
         }
         return ctlev == null ? null : new P2D(ctlev);
     }
@@ -490,7 +504,7 @@ public class StrategyLogic {
             return false;
         } else {
             moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
-            moves.add(MoveBuilder.c(MOVE).dfCToXY(rectangle, x, y, rectangle, world).maxSpeed(ms));
+            moves.add(MoveBuilder.c(MOVE).dfCToXY(rectangle, x, y, rectangle, world, factor).maxSpeed(ms));
             vGd.put(id, new P2D(x, y, world.getTickIndex(), ms));
             return true;
         }
@@ -533,7 +547,7 @@ public class StrategyLogic {
     }
 
     void makeGroupMove(int id, Rectangle groupRectangle, double x, double y, double ms, boolean select) {
-        if (select) moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
+        if (select) groupPositioningMoves.get(id).add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
         groupPositioningMoves.get(id).add(MoveBuilder.c(MOVE).dfCToXY(groupRectangle, x, y).maxSpeed(ms));
     }
 
@@ -553,14 +567,14 @@ public class StrategyLogic {
     }
 
     void scaleGroup(double scale, double x, double y, double speed, int id) {
-        moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
-        moves.add(MoveBuilder.c(SCALE).factor(scale).x(x).y(y).maxSpeed(speed));
+        groupPositioningMoves.get(id).add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
+        groupPositioningMoves.get(id).add(MoveBuilder.c(SCALE).factor(scale).x(x).y(y).maxSpeed(speed));
         vehicleGroupStateMap.put(id, MyStrategy.VehicleTypeState.SCALING);
     }
 
     void rotateGroup(int id, double angle, double x, double y, double speed) {
-        moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
-        moves.add(MoveBuilder.c(ROTATE).angle(angle).x(x).y(y).maxSpeed(speed).maxAngularSpeed(speed));
+        groupPositioningMoves.get(id).add(new MoveBuilder(CLEAR_AND_SELECT).group(id));
+        groupPositioningMoves.get(id).add(MoveBuilder.c(ROTATE).angle(angle).x(x).y(y).maxSpeed(speed).maxAngularSpeed(speed));
         vehicleGroupStateMap.put(id, MyStrategy.VehicleTypeState.ROTATING);
     }
 
@@ -568,6 +582,7 @@ public class StrategyLogic {
         moves.add(new MoveBuilder(CLEAR_AND_SELECT).vehicleType(HELICOPTER).setRect(new Rectangle(world)));
         moves.add(new MoveBuilder(ADD_TO_SELECTION).vehicleType(FIGHTER).setRect(new Rectangle(world)));
         moves.add(MoveBuilder.c(ASSIGN).group(id));
+        groupPositioningMoves.computeIfAbsent(id, gid -> new LinkedList<>());
     }
 
     void createGroupTIA(int id) {
@@ -575,17 +590,20 @@ public class StrategyLogic {
         moves.add(new MoveBuilder(ADD_TO_SELECTION).vehicleType(IFV).setRect(new Rectangle(world)));
         moves.add(new MoveBuilder(ADD_TO_SELECTION).vehicleType(ARRV).setRect(new Rectangle(world)));
         moves.add(MoveBuilder.c(ASSIGN).group(id));
+        groupPositioningMoves.computeIfAbsent(id, gid -> new LinkedList<>());
     }
 
     void createTypeGroup(VehicleType type, int id) {
         moves.add(new MoveBuilder(CLEAR_AND_SELECT).vehicleType(type).setRect(new Rectangle(world)));
         moves.add(MoveBuilder.c(ASSIGN).group(id));
+        groupPositioningMoves.computeIfAbsent(id, gid -> new LinkedList<>());
     }
 
     void createGroupTIAFH(int arial, int ground, int id) {
         moves.add(new MoveBuilder(CLEAR_AND_SELECT).group(arial));
         moves.add(new MoveBuilder(ADD_TO_SELECTION).group(ground));
         moves.add(MoveBuilder.c(ASSIGN).group(id));
+        groupPositioningMoves.computeIfAbsent(id, gid -> new LinkedList<>());
     }
 
     Stream<VehicleTick> mV() { return mVById.values().stream(); }

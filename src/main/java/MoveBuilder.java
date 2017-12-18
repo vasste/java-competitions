@@ -62,9 +62,9 @@ public class MoveBuilder {
         return this;
     }
 
-    MoveBuilder dfCToXY(Rectangle current, double x, double y, Rectangle rectangle, World world) {
-        this.y = y - current.cY();
-        this.x = x - current.cX();
+    MoveBuilder dfCToXY(Rectangle current, double x, double y, Rectangle rectangle, World world, double factor) {
+        this.y = Math.min(U.PALE_SIDE * factor, y - current.cY());
+        this.x = Math.min(U.PALE_SIDE * factor , x - current.cX());
         if (rectangle.r + this.x >= world.getWidth()) this.x -= rectangle.r + this.x - world.getWidth();
         if (rectangle.b + this.y >= world.getHeight()) this.y -= rectangle.b + this.y - world.getHeight();
         if (rectangle.l + this.x < 0) this.x = -rectangle.l;
