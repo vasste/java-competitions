@@ -1,6 +1,9 @@
+import com.sun.org.apache.regexp.internal.RE;
 import model.*;
 
+import java.awt.*;
 import java.util.*;
+import java.util.List;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -40,10 +43,12 @@ public class StrategyLogic {
     double[][][] worldSpeedFactors;
     Map<Long, Facility> facilityMap = new HashMap<>();
     Map<Integer, FacilityTick> groupFacility = new HashMap<>();
-    final int factor = 2;
+    Map<Integer, Stack<FactoriesRoute.N>> groupFacilityRoute = new HashMap<>();
+    static final int factor = 2;
     Map<Integer, Accumulator> groupUpdates = new HashMap<>();
     static final VehicleType[] ARIAL_TYPES = new VehicleType[]{FIGHTER, HELICOPTER};
     static final VehicleType[] GROUND_TYPES = new VehicleType[]{TANK, ARRV, IFV};
+    static VisualClient visualDebug = new VisualClient();
 
     Map<VehicleType, Accumulator> update(Player me, World world, Game game) {
         this.me = me;
@@ -54,7 +59,11 @@ public class StrategyLogic {
         Player[] players = world.getPlayers();
         for (int i = 0; i < players.length; i++) if (players[i].getId() != me.getId()) enemy = players[i];
         Facility[] facilities = world.getFacilities();
-        for (int i = 0; i < facilities.length; i++) facilityMap.put(facilities[i].getId(), facilities[i]);
+        for (int i = 0; i < facilities.length; i++) {
+            visualDebug.text(facilities[i].getLeft() + U.PALE_SIDE/2, facilities[i].getTop() + U.PALE_SIDE/2,
+                    facilities[i].getId() + "", Color.BLACK);
+            facilityMap.put(facilities[i].getId(), facilities[i]);
+        }
         if (terrainTypes == null || weatherTypes == null) {
             weatherTypes = world.getWeatherByCellXY();
             terrainTypes = world.getTerrainByCellXY();
@@ -69,6 +78,21 @@ public class StrategyLogic {
                 }
             }
         }
+
+        if (debugEnabled()) {
+            for (int i = 0; i < facilities.length; i++) {
+                visualDebug.text(facilities[i].getLeft() + U.PALE_SIDE / 2, facilities[i].getTop() + U.PALE_SIDE / 2,
+                        facilities[i].getId() + "", Color.BLACK);
+            }
+            for (Map.Entry<Integer, FacilityTick> e : groupFacility.entrySet()) {
+                Facility facility = facilityMap.get(e.getValue().fid);
+                visualDebug.fillRect(new Rectangle(facility), vehicleColor(e.getKey()));
+            }
+            for (Map.Entry<Integer, Stack<FactoriesRoute.N>> entry : groupFacilityRoute.entrySet()) {
+                visualDebug.displayRoute(entry.getValue(), factor, vehicleColor(entry.getKey()));
+            }
+        }
+
         return vu;
     }
 
@@ -93,7 +117,7 @@ public class StrategyLogic {
         stream.map(P2D::new).map(pt -> new FactoriesRoute.N(pt.inWorld(world, factor))).
                 filter(pt -> Arrays.stream(exclude).noneMatch(xy -> xy[0] == pt.x && pt.y == xy[1]))
                 .forEach(n -> map.computeIfAbsent(n, k -> new Accumulator(0)).inc());
-        return map.entrySet().stream().filter(kv -> kv.getValue().value > 10).map(kv -> new int[]{kv.getKey().x, kv.getKey().y})
+        return map.entrySet().stream().filter(kv -> kv.getValue().value > 1).map(kv -> new int[]{kv.getKey().x, kv.getKey().y})
                 .toArray(value -> new int[value][2]);
     }
 
@@ -105,7 +129,7 @@ public class StrategyLogic {
         groupPositioningMoves.computeIfAbsent(gid, k -> new LinkedList<>());
         if (facilityMap.isEmpty()) return 1;
         groupFacility.remove(gid);
-        groupFacility.keySet().removeIf(integer -> groupFacility.get(integer).tick < world.getTickIndex() - 60);
+        groupFacility.keySet().removeIf(id -> groupFacility.get(id).tick < world.getTickIndex() - 500);
 
         Rectangle rectangle = sOfVG(gid)[0];
 
@@ -149,12 +173,22 @@ public class StrategyLogic {
             }
         }
         if (minRoute != null && !minRoute.isEmpty()) {
-            Facility facility = facilityMap.get(minRouteFactoryId);
-            groupFacility.put(gid, new FacilityTick(facility.getId(), world.getTickIndex()));
-            return moveToNextFacility(gid, rectangle, minRoute, facility);
+            Facility to = facilityMap.get(minRouteFactoryId);
+            int[] tij = new P2D(to.getLeft(), to.getTop()).inWorld(world, factor);
+            groupFacilityRoute.put(gid, routes.pathTo(tij[0], tij[1], worldSpeedFactors[tij[0]][tij[1]][1]));
+            groupFacility.put(gid, new FacilityTick(to.getId(), world.getTickIndex()));
+            return moveToNextFacility(gid, rectangle, minRoute, to);
         }
 
         return mine >= facilityMap.size() ? 1 : 0;
+    }
+
+    private Color vehicleColor(int gid) {
+        if (gid == MyStrategy.GT) return Color.RED;
+        if (gid == MyStrategy.GA) return Color.decode("#663300");
+        if (gid == MyStrategy.GI) return Color.ORANGE;
+        if (gid == MyStrategy.GFH) return Color.PINK;
+        return Color.RED;
     }
 
     boolean mine(Facility facility) {
@@ -715,5 +749,9 @@ public class StrategyLogic {
         public int hashCode() {
             return Objects.hash(fid);
         }
+    }
+
+    public static boolean debugEnabled() {
+        return visualDebug != null;
     }
 }

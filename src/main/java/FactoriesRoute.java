@@ -1,3 +1,4 @@
+import java.awt.*;
 import java.util.*;
 
 import static java.lang.StrictMath.round;
@@ -79,6 +80,18 @@ public class FactoriesRoute {
                 }
             }
         }
+
+//        if (StrategyLogic.debugEnabled()) {
+//            double side = StrategyLogic.factor * U.PALE_SIDE;
+//            for (int i = 0; i < noEdges.length; i++) {
+//                if (noEdges[i]) {
+//                    int y = i/width;
+//                    int x = i - y*width;
+//                    StrategyLogic.visualDebug.rect(x * side , y * side, (x+1)*side, (y+1)*side, Color.RED);
+//                }
+//            }
+//        }
+
         distTo = new double[titles];
         edgeTo = new N[titles];
         Arrays.fill(distTo, Double.MAX_VALUE);

@@ -1,6 +1,5 @@
 import model.*;
 
-import java.lang.reflect.Array;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -15,7 +14,6 @@ public final class MyStrategy implements Strategy {
         TACTICAL_EXECUTION_CHANGE, TACTICAL_EXECUTION_FACILITIES, NUCLEAR_STRIKE}
     public enum GroupGameState {NUCLEAR_STRIKE, NUCLEAR_STRIKE_RECOVERY, WAIT_COMMAND_FINISH, TACTICAL_EXECUTION}
     public enum GroupOrderState { I, INX, INY, NX, NY, F }
-    static final Boolean DEBUG = false;
     private final StrategyLogic logic = new StrategyLogic();
     GameState gameState = GameState.ORDER_CREATION;
     GameState beforeGameState = GameState.ORDER_CREATION;
@@ -39,6 +37,8 @@ public final class MyStrategy implements Strategy {
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
+        if (StrategyLogic.debugEnabled()) StrategyLogic.visualDebug.beginPost();
+
         Map<VehicleType, Accumulator> vu = logic.update(me, world, game);
         if (logic.enemy.getNextNuclearStrikeTickIndex() > 0) {
             if (gameState != GameState.NUCLEAR_STRIKE) beforeGameState = gameState;
@@ -407,11 +407,8 @@ public final class MyStrategy implements Strategy {
             }
         }
         nextMove = nextMove == null ? logic.nextMove() : nextMove;
-        if (nextMove != null) {
-            if (DEBUG) System.out.print(world.getTickIndex() + " ");
-            if (DEBUG) System.out.println(nextMove);
-            nextMove.setMove(move);
-        }
+        if (nextMove != null) nextMove.setMove(move);
+        if (StrategyLogic.debugEnabled()) StrategyLogic.visualDebug.endPost();
     }
 
     private void unzipGround() {

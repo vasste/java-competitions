@@ -36,6 +36,10 @@ public class Rectangle implements Comparable<Rectangle> {
     Rectangle(Facility facility) {
         this(facility.getLeft(), facility.getTop(), facility.getTop() + 64, facility.getLeft() + 64);
     }
+    Rectangle(int[] xy, double factor) {
+        this(xy[0] * U.PALE_SIDE * factor, xy[1] * U.PALE_SIDE * factor,
+                U.PALE_SIDE * factor * (xy[1] + 1), U.PALE_SIDE * factor * (xy[0] + 1));
+    }
 
     boolean isNaN() {
         return l == Double.MAX_VALUE || r == Double.MAX_VALUE || t == Double.MAX_VALUE || b == Double.MAX_VALUE;
