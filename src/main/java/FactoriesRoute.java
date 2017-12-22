@@ -1,4 +1,3 @@
-import java.awt.*;
 import java.util.*;
 
 import static java.lang.StrictMath.round;
@@ -29,29 +28,54 @@ public class FactoriesRoute {
         this.height = height;
         int titles = width * height;
         edges = new double[titles][titles];
-        noEdges = new boolean[titles];
         N sn = new N(sx, sy, 0, width);
-        Set<N> adj = evaluateNeighbours(sn);
+        noEdges = buildMovementGraph(worldSpeedFactor, sx, sy, width, vti, otherGroups,
+                facility, excludeFacility, emp, excludeAdj, currentGroup, dfpt, height, edges);
+
+        distTo = new double[titles];
+        edgeTo = new N[titles];
+        Arrays.fill(distTo, Double.MAX_VALUE);
+        pq = new PriorityQueue<>();
+        distTo[sn.index()] = 0;
+        pq.add(sn);
+        while (!pq.isEmpty()) {
+            N from = pq.remove();
+            Set<N> adj = evaluateNeighbours(from, width, height, noEdges);
+            for (N to : adj)
+                relax(from, to);
+        }
+    }
+
+    public static boolean[] buildMovementGraph(double[][][] worldSpeedFactor, int sx, int sy, int width, int vti,
+                                               int[][] otherGroups, int[][] facility, int[][] excludeFacility, int[][] emp,
+                                               boolean excludeAdj, int[][] currentGroup, int[][] dfpt, int height,
+                                               double[][] edges) {
+        int titles = width * height;
+        boolean[] noEdges = new boolean[titles];
+        N sn = new N(sx, sy, 0, width);
+        Set<N> adj = evaluateNeighbours(sn, width, height, null);
         for (int i = 0; i < titles; i++) {
-            for (int j = 0; j < titles; j++) {
-                int jy = j/width;
-                int jx = j - jy*width;
                 int iy = i/width;
                 int ix = i - iy*width;
-                edges[i][j] += worldSpeedFactor[jx][jy][vti] + worldSpeedFactor[ix][iy][vti];
+                N in = new N(ix, iy, 0, width);
+                Set<N> adjI = evaluateNeighbours(in, width, height, noEdges);
+            for (N n : adjI) {
+                int jx = n.x;
+                int jy = n.y;
+                int j = n.index();
+                edges[i][j] += worldSpeedFactor[ix][iy][vti] + worldSpeedFactor[jx][jy][vti];
                 G: for (int[] otherGroup : otherGroups) {
-                    if (sx == otherGroup[0] && sy == otherGroup[1]) continue;
                     for (int[] xy : currentGroup) {
                         if (xy[0] == otherGroup[0] && xy[1] == otherGroup[1]) continue G;
                     }
                     if (jx == otherGroup[0] && jy == otherGroup[1]) {
                         noEdges[j] = true;
-                        if (excludeAdj) {
-                            for (N n : evaluateNeighbours(new N(jx, jy, 0, width))) {
-                                if (adj.contains(n))
-                                    noEdges[n.index()] = true;
-                            }
-                        }
+//                        if (excludeAdj) {
+//                            for (N oGadj : evaluateNeighbours(new N(otherGroup[0], otherGroup[1], 0, width), width, height, noEdges)) {
+//                                if (adj.contains(oGadj))
+//                                    noEdges[oGadj.index()] = true;
+//                            }
+//                        }
                     }
                 }
                 FI:
@@ -63,47 +87,36 @@ public class FactoriesRoute {
                     if (jx == fpt[0] && jy == fpt[1]) {
                         noEdges[j] = true;
                     }
+//                    if (excludeAdj) {
+//                        FI2: for (N oGadj : evaluateNeighbours(new N(fpt[0], fpt[1], 0, width), width, height, noEdges)) {
+//                            for (int[] anExcludeFacility : excludeFacility) {
+//                                if (anExcludeFacility[0] == oGadj.x && oGadj.y == anExcludeFacility[1])
+//                                    continue FI2;
+//                            }
+//                            if (adj.contains(oGadj) && (oGadj.x != sx || oGadj.y != sy)) {
+//                                noEdges[oGadj.index()] = true;
+//                            }
+//
+//                        }
+//                    }
                 }
                 EF: for (int k = 0; k < emp.length; k++) {
                     if (jx == emp[k][0] && jy == emp[k][1]) {
                         for (int[] aDfpt : dfpt) if (emp[k][0] == aDfpt[0] && emp[k][1] == aDfpt[1]) continue EF;
                         noEdges[j] = true;
-                        if (excludeAdj) {
-                            for (N n : evaluateNeighbours(new N(jx, jy, 0, width))) {
-                                for (int[] aDfpt : dfpt)
-                                    if (n.x == aDfpt[0] && n.y == aDfpt[1])
-                                        continue EF;
-                                noEdges[n.index()] = true;
-                            }
-                        }
+//                        if (excludeAdj) {
+//                            for (N adjn : evaluateNeighbours(new N(jx, jy, 0, width), width, height, noEdges)) {
+//                                for (int[] aDfpt : dfpt)
+//                                    if (adjn.x == aDfpt[0] && adjn.y == aDfpt[1])
+//                                        continue EF;
+//                                noEdges[adjn.index()] = true;
+//                            }
+//                        }
                     }
                 }
             }
         }
-
-//        if (StrategyLogic.debugEnabled()) {
-//            double side = StrategyLogic.factor * U.PALE_SIDE;
-//            for (int i = 0; i < noEdges.length; i++) {
-//                if (noEdges[i]) {
-//                    int y = i/width;
-//                    int x = i - y*width;
-//                    StrategyLogic.visualDebug.rect(x * side , y * side, (x+1)*side, (y+1)*side, Color.RED);
-//                }
-//            }
-//        }
-
-        distTo = new double[titles];
-        edgeTo = new N[titles];
-        Arrays.fill(distTo, Double.MAX_VALUE);
-        pq = new PriorityQueue<>();
-        distTo[sn.index()] = 0;
-        pq.add(sn);
-        while (!pq.isEmpty()) {
-            N from = pq.remove();
-            adj = evaluateNeighbours(from);
-            for (N to : adj)
-                relax(from, to);
-        }
+        return noEdges;
     }
 
     // relax edge e and update pq if changed
@@ -124,23 +137,23 @@ public class FactoriesRoute {
         }
     }
 
-    private void cij(int i, int j, int width, int height, Set<N> adj) {
-        if (i >= width || i < 0 || j < 0 || j >= height || noEdges[j * width + i]) return;
+    private static void cij(int i, int j, int width, int height, Set<N> adj, boolean[] noEdges) {
+        if (i >= width || i < 0 || j < 0 || j >= height || (noEdges != null && noEdges[j * width + i])) return;
         adj.add(new N(i, j, Double.MAX_VALUE, width));
     }
 
-    private Set<N> evaluateNeighbours(N n) {
+    private static Set<N> evaluateNeighbours(N n, int width, int height, boolean[] noEdges) {
         Set<N> adj = new HashSet<>();
         int i = n.x; // 1
         int j = n.y; // 1
-        cij(i - 1, j, width, height, adj); // 0,1
-        cij(i - 1, j - 1, width, height, adj); // 0,0
-        cij(i, j - 1, width, height, adj); // 1,0
-        cij(i + 1, j - 1, width, height, adj); // 2,0
-        cij(i + 1, j, width, height, adj); // 2,1
-        cij(i + 1, j + 1, width, height, adj); // 2,2
-        cij(i, j + 1, width, height, adj); //1,2
-        cij(i - 1, j + 1, width, height, adj); //0,2
+        cij(i - 1, j, width, height, adj, noEdges); // 0,1
+        //cij(i - 1, j - 1, width, height, adj, noEdges); // 0,0
+        cij(i, j - 1, width, height, adj, noEdges); // 1,0
+        //cij(i + 1, j - 1, width, height, adj, noEdges); // 2,0
+        cij(i + 1, j, width, height, adj, noEdges); // 2,1
+        //cij(i + 1, j + 1, width, height, adj, noEdges); // 2,2
+        cij(i, j + 1, width, height, adj, noEdges); //1,2
+        //cij(i - 1, j + 1, width, height, adj, noEdges); //0,2
         return adj;
     }
 

@@ -109,14 +109,17 @@ public class VisualClient {
     public void displayRoute(Stack<FactoriesRoute.N> path, double factor, Color color) {
         if (path.isEmpty()) return;
         FactoriesRoute.N from = path.peek();
+        double cost = from.cost;
         P2D fromP = new P2D(factor * from.x * U.PALE_SIDE + U.PALE_SIDE * factor/2, factor * from.y * U.PALE_SIDE + U.PALE_SIDE * factor/2);
         for (int i = path.size() - 2; i >= 0; i--) {
             FactoriesRoute.N to = path.get(i);
+            cost += to.cost;
             P2D dst = new P2D(factor * to.x * U.PALE_SIDE + U.PALE_SIDE * factor/2,
                     factor * to.y * U.PALE_SIDE + U.PALE_SIDE * factor/2);
             line(fromP.x, fromP.y, dst.x, dst.y, color);
             fromP = dst;
         }
+        text(fromP.x - U.PALE_SIDE * factor, fromP.y - U.PALE_SIDE * factor, cost + "", Color.BLACK);
     }
 
     /**

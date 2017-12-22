@@ -39,7 +39,7 @@ public final class MyStrategy implements Strategy {
     public void move(Player me, World world, Game game, Move move) {
         if (StrategyLogic.debugEnabled()) StrategyLogic.visualDebug.beginPost();
 
-        Map<VehicleType, Accumulator> vu = logic.update(me, world, game);
+        Map<VehicleType, Accumulator> vu = logic.update(me, world, game, groups);
         if (logic.enemy.getNextNuclearStrikeTickIndex() > 0) {
             if (gameState != GameState.NUCLEAR_STRIKE) beforeGameState = gameState;
             gameState = GameState.NUCLEAR_STRIKE;
@@ -55,6 +55,20 @@ public final class MyStrategy implements Strategy {
             }
             if (gameState == GameState.NUCLEAR_STRIKE && nuclearStrikeRecovered)
                 gameState = beforeGameState;
+        }
+
+        int[][] gpt = null;
+        int[][] fpt = null;
+        int[][] dfpt = null;
+        int[][] empt = null;
+        if (logic.moves.isEmpty() && gameState.ordinal() >= GameState.ORDER_ARIAL_POSITIONING.ordinal() &&
+                groupGameStateMap.values().stream().anyMatch(st -> st != GroupGameState.WAIT_COMMAND_FINISH)) {
+            gpt = logic.vehicleMap(logic.mVg(groups.stream().filter(id -> id != GFH).mapToInt(Integer::intValue).toArray()));
+            fpt = logic.facilityMap.values().stream().filter(f -> f.getType() == FacilityType.VEHICLE_FACTORY).filter(logic::mine).flatMap(f -> Arrays.stream(logic.facilityPoints(f)))
+                    .map(pt -> pt.inWorld(logic.world, StrategyLogic.FACTOR)).toArray(value -> new int[value][2]);
+            dfpt = logic.facilityMap.values().stream().filter(logic::notMine).flatMap(f -> Arrays.stream(logic.facilityPoints(f)))
+                    .map(pt -> pt.inWorld(logic.world, StrategyLogic.FACTOR)).toArray(value -> new int[value][2]);
+            empt = logic.vehicleMap(logic.eV(), fpt);
         }
 
         if (me.getRemainingActionCooldownTicks() > 0) return;
@@ -294,14 +308,26 @@ public final class MyStrategy implements Strategy {
                                 gid = it.next();
                                 it.remove();
                             } else gid = manufacturedGroupIndex++;
-                            logic.addNextMove(MoveBuilder.c(CLEAR_AND_SELECT).setRect(facilityRect).vehicleType(TANK));
-                            logic.addNextMove(MoveBuilder.c(ASSIGN).group(gid));
-                            logic.addNextMove(MoveBuilder.c(MOVE).x(U.PALE_SIDE * logic.factor).y(U.PALE_SIDE * logic.factor));
+                            logic.groupPositioningMoves.computeIfAbsent(gid, k -> new LinkedList<>());
                             groups.add(gid);
                             groupGameStateMap.put(gid, GroupGameState.WAIT_COMMAND_FINISH);
                             groupTypesMap.put(gid, EnumSet.of(TANK));
-                            logic.groupPositioningMoves.computeIfAbsent(gid, k -> new LinkedList<>());
 
+                            logic.addNextMove(MoveBuilder.c(CLEAR_AND_SELECT).setRect(facilityRect).vehicleType(TANK));
+                            logic.addNextMove(MoveBuilder.c(ASSIGN).group(gid));
+                            if (gpt == null) {
+                                gpt = logic.vehicleMap(logic.mVg(groups.stream().filter(id -> id != GFH).mapToInt(Integer::intValue).toArray()));
+                                fpt = logic.facilityMap.values().stream().filter(logic::mine).flatMap(f -> Arrays.stream(logic.facilityPoints(f)))
+                                        .map(pt -> pt.inWorld(logic.world, StrategyLogic.FACTOR)).toArray(value -> new int[value][2]);
+                                dfpt = logic.facilityMap.values().stream().filter(logic::notMine).flatMap(f -> Arrays.stream(logic.facilityPoints(f)))
+                                        .map(pt -> pt.inWorld(logic.world, StrategyLogic.FACTOR)).toArray(value -> new int[value][2]);
+                                empt = logic.vehicleMap(logic.eV(), fpt);
+                            }
+                            if (logic.captureNearestFactory(gid, gpt, fpt, empt, dfpt) > 0) {
+                                P2D ep = logic.findPointInNextWarFieldSquare(facilityRect);
+                                logic.makeGroundTacticalGroupMove(gid, ep.x, ep.y, facilityRect, gpt, fpt, false);
+                            }
+                            logic.addNextMove(logic.groupPositioningMoves.get(gid).peek());
                         }
                     }
                     extractNextMoves();
@@ -310,14 +336,8 @@ public final class MyStrategy implements Strategy {
                     extractNextMoves(true);
             }
 
-            if (logic.moves.isEmpty() && gameState.ordinal() >= GameState.TACTICAL_EXECUTION.ordinal()) {
+            if (logic.moves.isEmpty() && gameState.ordinal() >= GameState.ORDER_ARIAL_POSITIONING.ordinal()) {
                 logic.setupNuclearStrike();
-                int[][] gpt = logic.vehicleMap(logic.mV());
-                int[][] fpt = logic.facilityMap.values().stream().filter(logic::mine).flatMap(f -> Arrays.stream(logic.facilityPoints(f)))
-                        .map(pt -> pt.inWorld(logic.world, logic.factor)).toArray(value -> new int[value][2]);
-                int[][] dfpt = logic.facilityMap.values().stream().filter(logic::notMine).flatMap(f -> Arrays.stream(logic.facilityPoints(f)))
-                        .map(pt -> pt.inWorld(logic.world, logic.factor)).toArray(value -> new int[value][2]);
-                int[][] empt = logic.vehicleMap(logic.eV(), fpt);
                 Set<FactoriesRoute.N> aRpt = Arrays.stream(logic.vehicleMap(logic.eVt(StrategyLogic.ARIAL_TYPES)))
                         .map(FactoriesRoute.N::new).collect(Collectors.toSet());
                 Set<FactoriesRoute.N> gRpt = Arrays.stream(logic.vehicleMap(logic.eVt(StrategyLogic.GROUND_TYPES)))
@@ -342,11 +362,7 @@ public final class MyStrategy implements Strategy {
                                 captured = logic.captureNearestFactory(gid, gpt, fpt, empt, dfpt);
                             }
                             if (captured > 0) {
-                                P2D ep = logic.cEP(gid == GFH, gid);
-                                if (ep == null) {
-                                    ep = logic.cEP(false, gid);
-                                    if (ep == null) ep = new P2D((int)world.getWidth()/2, (int)world.getHeight()/2);
-                                }
+                                P2D ep = findEnemyToAttack(gid, rectangle);
                                 if (logic.myVehicleReadyAttack(gid) < 60) {
                                     Line line = new Line(ep, new P2D(rectangle.cX(), rectangle.cY()));
                                     double angle = Line.angle(line, rectangle.sightLines()[0]);
@@ -361,7 +377,7 @@ public final class MyStrategy implements Strategy {
                                         if (groupTypesMap.get(gid).contains(FIGHTER) || groupTypesMap.get(gid).contains(HELICOPTER)) {
                                             logic.makeTacticalGroupMove(gid, ep.x, ep.y, rectangle.speed);
                                         } else {
-                                            logic.makeGroundTacticalGroupMove(gid, ep.x, ep.y, rectangle, gpt, fpt);
+                                            logic.makeGroundTacticalGroupMove(gid, ep.x, ep.y, rectangle, gpt, fpt, true);
                                         }
                                     }
                                 } else {
@@ -409,6 +425,16 @@ public final class MyStrategy implements Strategy {
         nextMove = nextMove == null ? logic.nextMove() : nextMove;
         if (nextMove != null) nextMove.setMove(move);
         if (StrategyLogic.debugEnabled()) StrategyLogic.visualDebug.endPost();
+    }
+
+    private P2D findEnemyToAttack(Integer gid, Rectangle rectangle) {
+        P2D ep = logic.cEP(gid == GFH, gid);
+        if (ep == null) {
+            ep = logic.cEP(false, gid);
+            if (ep == null)
+                ep = logic.findPointInNextWarFieldSquare(rectangle);
+        }
+        return ep;
     }
 
     private void unzipGround() {
