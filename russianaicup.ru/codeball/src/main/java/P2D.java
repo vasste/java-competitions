@@ -1,16 +1,14 @@
-import model.CircularUnit;
-
 import java.io.Serializable;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-public class Point implements Cloneable, Serializable {
+public class P2D implements Cloneable, Serializable {
    private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("#.###");
 
-   public static Point plus(Point p, Vector2D v) {
-      Point res = new Point(p);
+   public static P2D plus(P2D p, Vec2D v) {
+      P2D res = new P2D(p);
       return res.plus(v);
    }
 
@@ -20,17 +18,17 @@ public class Point implements Cloneable, Serializable {
    private long ix;
    private long iy;
 
-   public Point() {
+   public P2D() {
 
    }
 
-   public Point(double x, double y) {
+   public P2D(double x, double y) {
       this.x = x;
       this.y = y;
       init();
    }
 
-   public Point(Point other) {
+   public P2D(P2D other) {
       this.x = other.x;
       this.y = other.y;
       init();
@@ -57,29 +55,25 @@ public class Point implements Cloneable, Serializable {
       this.y = y;
    }
 
-   public Point plus(Vector2D vector) {
-      return new Point(x + vector.getX(), y + vector.getY());
+   public P2D plus(Vec2D vector) {
+      return new P2D(x + vector.getX(), y + vector.getY());
    }
 
-   public double distanceTo(Point other) {
+   public double distanceTo(P2D other) {
       double dx = (x - other.x);
       double dy = (y - other.y);
-      return Utils.hypot(dx, dy);
+      return FastMath.hypot(dx, dy);
    }
 
    public double distanceTo(double xPos, double yPos) {
       double dx = (x - xPos);
       double dy = (y - yPos);
-      return Utils.hypot(dx, dy);
+      return FastMath.hypot(dx, dy);
    }
 
-   public double distanceTo(CircularUnit other) {
-      return distanceTo(other.getX(), other.getY());
-   }
-
-   public List<Point> inRange(List<Point> otherPoints, double range) {
-      List<Point> res = new ArrayList<>();
-      for (Point p : otherPoints) {
+   public List<P2D> inRange(List<P2D> otherP2DS, double range) {
+      List<P2D> res = new ArrayList<>();
+      for (P2D p : otherP2DS) {
          if (distanceTo(p) < range) {
             res.add(p);
          }
@@ -87,10 +81,10 @@ public class Point implements Cloneable, Serializable {
       return res;
    }
 
-   public Point findNearestPoint(Collection<Point> otherPoints) {
-      Point res = null;
+   public P2D findNearestPoint(Collection<P2D> otherP2DS) {
+      P2D res = null;
       double minDist = Integer.MAX_VALUE;
-      for (Point p : otherPoints) {
+      for (P2D p : otherP2DS) {
          double dist = distanceTo(p);
          if (dist < minDist) {
             res = p;
@@ -100,10 +94,10 @@ public class Point implements Cloneable, Serializable {
       return res;
    }
 
-   public Point findMostFarPoint(Collection<Point> otherPoints) {
-      Point res = null;
+   public P2D findMostFarPoint(Collection<P2D> otherP2DS) {
+      P2D res = null;
       double maxDist = Integer.MIN_VALUE;
-      for (Point p : otherPoints) {
+      for (P2D p : otherP2DS) {
          double dist = distanceTo(p);
          if (dist > maxDist) {
             res = p;
@@ -114,8 +108,8 @@ public class Point implements Cloneable, Serializable {
    }
 
    @Override
-   public Point clone() {
-      return new Point(this);
+   public P2D clone() {
+      return new P2D(this);
    }
 
    @Override
@@ -125,11 +119,11 @@ public class Point implements Cloneable, Serializable {
       if (o == null || getClass() != o.getClass())
          return false;
 
-      Point point = (Point) o;
+      P2D p2D = (P2D) o;
 
-      if (ix != point.ix)
+      if (ix != p2D.ix)
          return false;
-      return iy == point.iy;
+      return iy == p2D.iy;
    }
 
    @Override

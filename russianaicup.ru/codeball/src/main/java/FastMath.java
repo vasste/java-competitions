@@ -1,5 +1,7 @@
 public class FastMath {
 
+    public static double SMALL_DOUBLE = 0.0005;
+
     /** Tangent table, used by atan() (high bits). */
     private static final double TANGENT_TABLE_A[] =
             {
@@ -429,5 +431,34 @@ public class FastMath {
         double a = table[indexA];
         return a + (table[indexB] - a) * (t - (indexA * step)) * invStep;
 
+    }
+
+    public static double hypot(double x, double y) {
+        return StrictMath.sqrt(x * x + y * y);
+    }
+
+    public static double hypot(double x, double y, double z) {
+        return StrictMath.sqrt(x * x + y * y + z * z);
+    }
+
+    public static boolean equals(double d1, double d2) {
+        return Math.abs(d1 - d2) < SMALL_DOUBLE;
+    }
+
+    /**
+     * Normalize given angle to interval [-PI, PI]
+     *
+     * @param angle any angle
+     * @return angle in interval [-PI, PI]
+     */
+    public static double normalizeAngle(double angle) {
+        double resAngle = angle;
+        while (resAngle > Math.PI) {
+            resAngle -= 2 * Math.PI;
+        }
+        while (resAngle < -Math.PI) {
+            resAngle += 2 * Math.PI;
+        }
+        return resAngle;
     }
 }
