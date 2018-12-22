@@ -1,3 +1,4 @@
+import model.Action;
 import model.Robot;
 
 /**
@@ -20,6 +21,12 @@ public class Vec3D {
 
 	public Vec3D(Vec3D v) {
 		this(v.x, v.y, v.z);
+	}
+
+	public Vec3D(P3D start, P3D end) {
+		this.x = end.getX() - start.getX();
+		this.y = end.getY() - start.getY();
+		this.z = end.getZ() - start.getZ();
 	}
 
 	public double getX() {
@@ -71,5 +78,11 @@ public class Vec3D {
 
 	public Vec3D multiply(double scale) {
 		return new Vec3D(x * scale, y * scale, z * scale);
+	}
+
+	public void apply(Action action) {
+		action.target_velocity_x = x;
+		action.target_velocity_y = y;
+		action.target_velocity_z = z;
 	}
 }

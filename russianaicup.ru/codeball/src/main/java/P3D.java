@@ -1,3 +1,4 @@
+import model.Ball;
 import model.Robot;
 
 import java.text.DecimalFormat;
@@ -23,6 +24,10 @@ public class P3D {
 		this(robot.x, robot.y, robot.z);
 	}
 
+	public P3D(Ball ball) {
+		this(ball.x, ball.y, ball.z);
+	}
+
 	public P3D plus(Vec3D vector) {
 		return new P3D(x + vector.getX(), y + vector.getY(), z + vector.getZ());
 	}
@@ -35,7 +40,18 @@ public class P3D {
 	}
 
 	public String toString() {
-		return "[x=" + DECIMAL_FORMAT.format(x) + "][y=" +
-				DECIMAL_FORMAT.format(y) + "]";
+		return DECIMAL_FORMAT.format(x) + "," + DECIMAL_FORMAT.format(y) + "," + DECIMAL_FORMAT.format(z);
+	}
+
+	public double getX() {
+		return x;
+	}
+
+	public double getY() {
+		return y;
+	}
+
+	public double getZ() {
+		return z;
 	}
 }
