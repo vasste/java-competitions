@@ -14,6 +14,8 @@ public class P3D {
 	private double y;
 	private double z;
 
+	static P3D zero = new P3D(0, 0, 0);
+
 	public P3D(double x, double y, double z) {
 		this.x = x;
 		this.y = y;

@@ -1,4 +1,6 @@
 import model.Action;
+import model.Ball;
+import model.Game;
 import model.Robot;
 
 /**
@@ -49,7 +51,11 @@ public class Vec3D {
 		return new Vec3D(r.velocity_x, r.velocity_y, r.velocity_z);
 	}
 
-	public static Vec3D touch(Robot r) {
+    public static Vec3D velocity(Ball ball) {
+        return new Vec3D(ball.velocity_x, ball.velocity_y, ball.velocity_z);
+    }
+
+    public static Vec3D touch(Robot r) {
 		return new Vec3D(r.touch_normal_x, r.touch_normal_y, r.touch_normal_z);
 	}
 
