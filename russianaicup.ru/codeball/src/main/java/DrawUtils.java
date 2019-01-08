@@ -1,27 +1,10 @@
-import com.google.gson.Gson;
-import model.*;
-import model.Robot;
+import model.Ball;
 
 import java.awt.*;
 
-public final class MyStrategy implements Strategy {
+public class DrawUtils {
 
-    Game game;
-
-    @Override
-    public void act(Robot me, Rules rules, Game game, Action action) {
-        this.game = game;
-    }
-    
-    @Override
-    public String customRendering() {
-        if (game == null) return "";
-        Gson gson = new Gson();
-        Object[] items = new Object[]{new Sphere(game.ball, Color.BLACK).h(), new TH("tes")};
-         return gson.toJson(items);
-    }
-
-    class TH {
+    static class TH {
         String Text;
 
         public TH(String text) {
@@ -29,7 +12,7 @@ public final class MyStrategy implements Strategy {
         }
     }
 
-    class SH {
+    static class SH {
         Sphere Sphere;
 
         public SH(Sphere sphere) {
@@ -37,8 +20,16 @@ public final class MyStrategy implements Strategy {
         }
     }
 
-    class Sphere {
+    public static Sphere s() {
+        return null;
+    }
+
+    static class Sphere {
         double x, y, z, radius, r, g, b, a;
+
+        public Sphere(Vec3D p, double radius, Color color) {
+            this(p.getX(), p.getY(), p.getZ(), radius, color);
+        }
 
         public Sphere(Ball ball, Color color) {
             this(ball.x, ball.y, ball.z, ball.radius, color);
@@ -64,7 +55,7 @@ public final class MyStrategy implements Strategy {
         }
     }
 
-    class LH {
+    static class LH {
         Line Line;
 
         public LH(Line line) {
@@ -72,8 +63,17 @@ public final class MyStrategy implements Strategy {
         }
     }
 
-    class Line {
+    static class Line {
         double x1, y1, z1, x2, y2, z2, width, r, g, b, a;
+
+        public Line(Vec3D point, Vec3D velocity) {
+            this(point, point.plus(velocity), 1, Color.YELLOW);
+        }
+
+        public Line(Vec3D p1, Vec3D p2, double width, Color color) {
+            this(p1.getX(), p1.getY(), p1.getZ(), p2.getX(), p2.getY(), p2.getZ(), width, color.getRed(),
+            color.getGreen(), color.getBlue());
+        }
 
         public Line(double x1, double y1, double z1, double x2, double y2, double z2, double width,
                     double r, double g, double b) {

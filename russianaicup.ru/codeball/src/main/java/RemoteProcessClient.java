@@ -1,5 +1,7 @@
 import com.google.gson.Gson;
-import model.*;
+import model.Action;
+import model.Game;
+import model.Rules;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -12,17 +14,20 @@ public final class RemoteProcessClient {
     OutputStreamWriter output;
     Gson gson = new Gson();
 
-    public RemoteProcessClient(String host, int port) throws IOException {
+    public RemoteProcessClient(String host, int port) {
         Socket socket = new Socket();
-        socket.setTcpNoDelay(true);
-        socket.connect(new InetSocketAddress(host, port));
+        try {
+            socket.setTcpNoDelay(true);
+            socket.connect(new InetSocketAddress(host, port));
 
-        input = new BufferedReader(
-                new InputStreamReader(new BufferedInputStream(socket.getInputStream()), StandardCharsets.UTF_8));
-        output = new OutputStreamWriter(new BufferedOutputStream(socket.getOutputStream()), StandardCharsets.UTF_8);
+            input = new BufferedReader(
+                    new InputStreamReader(new BufferedInputStream(socket.getInputStream()), StandardCharsets.UTF_8));
+            output = new OutputStreamWriter(new BufferedOutputStream(socket.getOutputStream()), StandardCharsets.UTF_8);
 
-        output.write("json\n");
-        output.flush();
+            output.write("json\n");
+            output.flush();
+        } catch (IOException e) {
+        }
     }
 
     public Game readGame() throws IOException {
