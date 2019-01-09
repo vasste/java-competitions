@@ -19,7 +19,7 @@ public class AttackerStrategy implements RobotStrategy {
         double speed = 100*rules.ROBOT_MAX_GROUND_SPEED;
         for (PointWithTime ballPoint : ballPoints) {
             Vec3D ballPos = ballPoint.v;
-            if (ballPos.getY() >= mePos.getY() &&
+            if (ballPos.getY() > mePos.getY() &&
                 Math.abs(ballPos.getX()) < (rules.arena.width / 2.0) &&
                 Math.abs(ballPos.getZ()) < (rules.arena.depth / 2.0))
             {

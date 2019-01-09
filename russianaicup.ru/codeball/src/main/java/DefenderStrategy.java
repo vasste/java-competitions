@@ -20,8 +20,7 @@ public class DefenderStrategy implements RobotStrategy {
         Vec3D mp = new Vec3D(me);
 
         Vec3D velocity = null;
-        goalPointAndTime = evaluation(game.ball, mp, rules, goalPointAndTime, ballPoints, leftRight,
-                renderingCollection, random);
+        goalPointAndTime = evaluation(game.ball, mp, rules, ballPoints, leftRight, renderingCollection, random);
 
         switch (defenderState) {
             case init:
@@ -43,22 +42,23 @@ public class DefenderStrategy implements RobotStrategy {
         }
     }
 
-    PointWithTime evaluation(Ball ball, Vec3D me, Rules rules, PointWithTime goalPointAndTime,
+    PointWithTime evaluation(Ball ball, Vec3D me, Rules rules,
                              List<PointWithTime> ballPoints, int leftRight,
                              Map<Double, Object> renderingCollection, Random random) {
-        int possibleGoal = 0;
-        for (; possibleGoal < ballPoints.size(); possibleGoal++) {
-            PointWithTime pWt = ballPoints.get(possibleGoal);
-            if (SimulationUtils.goal(pWt.v, rules.arena, ball.radius, leftRight))
-                break;
-        }
-        if (ballPoints.isEmpty() || possibleGoal == ballPoints.size()) {
-            defenderState = DefenderStates.init;
-            return null;
-        }
-
-        for (int i = 0; i < possibleGoal; i++) {
+        int possibleGoal = -1;
+        for (int i = 0; i < ballPoints.size(); i++) {
             PointWithTime pWt = ballPoints.get(i);
+            if (SimulationUtils.goal(pWt.v, rules.arena, ball.radius, leftRight)) {
+                possibleGoal = i;
+                break;
+            }
+        }
+        double minRequiredSpeed = Double.MAX_VALUE;
+        PointWithTime minSpeedPwt = null;
+        defenderState = DefenderStates.init;
+        for (int j = 0; j < possibleGoal; j++) {
+            PointWithTime pWt = ballPoints.get(j);
+            defenderState = DefenderStates.defend;
             renderingCollection.put(pWt.t + random.nextDouble(),
                     new DrawUtils.Line(me, pWt.v, 5, Color.GREEN).h());
             double needSpeed = pWt.v.minus(me).length() / pWt.t;
@@ -66,10 +66,14 @@ public class DefenderStrategy implements RobotStrategy {
                 defenderState = DefenderStates.defend;
                 renderingCollection.put(pWt.t, new DrawUtils.Sphere(pWt.v, ball.radius, Color.GREEN).h());
                 return pWt;
+            } else {
+                if (minRequiredSpeed > needSpeed) {
+                    minRequiredSpeed = needSpeed;
+                    minSpeedPwt = pWt;
+                }
             }
         }
-        defenderState = DefenderStates.init;
-        return null;
+        return minSpeedPwt;
     }
 
     enum DefenderStates {

@@ -8,7 +8,7 @@ import java.util.*;
 
 public final class MyStrategy implements Strategy {
 
-    private final RobotStrategy[] strategies = {new DefenderStrategy(), new Empty()};
+    private final RobotStrategy[] strategies = {new DefenderStrategy(), new AttackerStrategy()};
     Map<Double, Object> renderingCollection = new HashMap<>();
     List<PointWithTime> ballPoints = new ArrayList<>();
     int simulationTick = 0;
@@ -19,7 +19,6 @@ public final class MyStrategy implements Strategy {
 
     @Override
     public void act(Robot me, Rules rules, Game game, Action action) {
-        if (!me.is_teammate) return;  // TODO
         if (game.current_tick == 0) {
             leftRight = (int)Math.signum(me.z);
         }

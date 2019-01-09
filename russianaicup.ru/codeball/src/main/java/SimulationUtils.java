@@ -57,8 +57,8 @@ public class SimulationUtils {
     public static void move(Entity e, double deltaTime, Rules rules) {
         clamp(e.velocity, -rules.MAX_ENTITY_SPEED, rules.MAX_ENTITY_SPEED);
         e.updatePosition(deltaTime);
-        e.position.setY(e.position.getY() - rules.GRAVITY * deltaTime * deltaTime / 2);
-        e.velocity.setY(e.velocity.getY() - rules.GRAVITY * deltaTime);
+        e.position.setY(clamp(e.position.getY() - rules.GRAVITY * deltaTime * deltaTime / 2, e.radius, rules.arena.height - e.radius));
+        e.velocity.setY(clamp(e.velocity.getY() - rules.GRAVITY * deltaTime, e.radius, rules.arena.height - e.radius));
     }
 
     public static int simulate(Ball ball, Rules rules, Game game, Robot robot, Map<Double, Object> renderingCollection,
@@ -66,15 +66,28 @@ public class SimulationUtils {
         if (simulationTick == game.current_tick) return simulationTick;
         ballPoints.clear();
         Entity ballEntity = new Entity(ball, rules);
-        Entity robotEntity = new Entity(robot, rules);
+        Entity[] robotEntities = new Entity[2];
+        for (int i = 0; i < game.robots.length; i++) {
+            Robot enemy = game.robots[i];
+            if (!enemy.is_teammate)
+                robotEntities[enemy.id % 2] = new Entity(robot, rules);
+        }
         for (int i = 0; i < 60; i++) {
             double t = 1.0/rules.TICKS_PER_SECOND * i;
             move(ballEntity, t, rules);
-            ballPoints.add(new PointWithTime(ballEntity.position, t));
+            for (int j = 0; j < robotEntities.length; j++) {
+                move(robotEntities[j], t, rules);
+                renderingCollection.put(t, new DrawUtils.Sphere(robotEntities[j].position, robotEntities[j].radius, Color.ORANGE).h());
+            }
             Vec3D normal = SimulationUtils.collideWithArena(ballEntity, rules.arena, renderingCollection);
-            if (normal == null)
-                SimulationUtils.collideCentities(ballEntity, robotEntity, random, rules);
-            //renderingCollection.put(t, new DrawUtils.Sphere(ballEntity.position, ball.radius, Color.RED).h());
+            if (normal == null) {
+                for (int j = 0; j < robotEntities.length; j++) {
+                    Entity robotEntity = robotEntities[j];
+                    SimulationUtils.collideCentities(ballEntity, robotEntity, random, rules);
+                }
+            }
+            ballPoints.add(new PointWithTime(ballEntity.position, t));
+            renderingCollection.put(t, new DrawUtils.Sphere(ballEntity.position, ball.radius, Color.RED).h());
         }
         return game.current_tick;
     }
