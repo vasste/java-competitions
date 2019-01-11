@@ -1,10 +1,12 @@
 public class PointWithTime {
     Vec3D v;
     double t;
+    Vec3D vl;
 
-    public PointWithTime(Vec3D v, double t) {
+    public PointWithTime(Vec3D v, double t, Vec3D vl) {
         this.v = v;
         this.t = t;
+        this.vl = vl;
     }
 
     @Override

@@ -27,7 +27,7 @@ public final class MyStrategy implements Strategy {
         if (restart)
             currentGoals = game.players[0].score + game.players[1].score;
 
-        simulationTick = SimulationUtils.simulate(game.ball, rules, game, me, renderingCollection,
+        simulationTick = SimulationUtils.simulate(game.ball, rules, game, renderingCollection,
                 random, ballPoints, simulationTick);
 
         strategies[me.id % 2].act(me, rules, game, action, ballPoints, renderingCollection, random, leftRight, restart);

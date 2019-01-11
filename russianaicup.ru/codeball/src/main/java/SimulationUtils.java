@@ -37,7 +37,8 @@ public class SimulationUtils {
     }
 
     public static boolean goal(Vec3D ball, Arena arena, double radius, int leftRight) {
-        return Math.abs(ball.getZ()) > arena.depth/2 + radius && Math.signum(ball.getZ()) == leftRight;
+        return Math.abs(ball.getZ()) > arena.depth/2 - radius && Math.signum(ball.getZ()) == leftRight &&
+               Math.abs(ball.getX()) <= arena.goal_width/2 + radius;
     }
 
     public static Dan min(Dan dan1, Dan dan2) {
@@ -61,35 +62,49 @@ public class SimulationUtils {
         e.velocity.setY(clamp(e.velocity.getY() - rules.GRAVITY * deltaTime, e.radius, rules.arena.height - e.radius));
     }
 
-    public static int simulate(Ball ball, Rules rules, Game game, Robot robot, Map<Double, Object> renderingCollection,
-                                Random random, List<PointWithTime> ballPoints, int simulationTick) {
+    public static int simulate(Ball ball, Rules rules, Game game, Map<Double, Object> renderingCollection,
+                               Random random, List<PointWithTime> ballPoints, int simulationTick) {
         if (simulationTick == game.current_tick) return simulationTick;
         ballPoints.clear();
         Entity ballEntity = new Entity(ball, rules);
-        Entity[] robotEntities = new Entity[2];
+        Entity[] robotEntities = new Entity[3];
         for (int i = 0; i < game.robots.length; i++) {
             Robot enemy = game.robots[i];
             if (!enemy.is_teammate)
-                robotEntities[enemy.id % 2] = new Entity(robot, rules);
+                robotEntities[enemy.id % 2] = new Entity(enemy, rules);
+            else if (enemy.id % 2 == 1)
+                robotEntities[2] = new Entity(enemy, rules);
         }
         for (int i = 0; i < 60; i++) {
             double t = 1.0/rules.TICKS_PER_SECOND * i;
             move(ballEntity, t, rules);
             for (int j = 0; j < robotEntities.length; j++) {
                 move(robotEntities[j], t, rules);
-                renderingCollection.put(t, new DrawUtils.Sphere(robotEntities[j].position, robotEntities[j].radius, Color.ORANGE).h());
+                renderingCollection.put(t, new DrawUtils.Sphere(robotEntities[j].position,
+                        robotEntities[j].radius, Color.ORANGE).h());
             }
             Vec3D normal = SimulationUtils.collideWithArena(ballEntity, rules.arena, renderingCollection);
             if (normal == null) {
                 for (int j = 0; j < robotEntities.length; j++) {
                     Entity robotEntity = robotEntities[j];
-                    SimulationUtils.collideCentities(ballEntity, robotEntity, random, rules);
+                    SimulationUtils.collideEntities(ballEntity, robotEntity, random, rules);
                 }
             }
-            ballPoints.add(new PointWithTime(ballEntity.position, t));
+            ballPoints.add(new PointWithTime(ballEntity.position, t, ballEntity.velocity));
             renderingCollection.put(t, new DrawUtils.Sphere(ballEntity.position, ball.radius, Color.RED).h());
         }
         return game.current_tick;
+    }
+
+    public static boolean simulateGoalHit(Vec3D velocity, Vec3D position, Rules rules, int leftRight) {
+        Entity ballEntity = new Entity(rules.BALL_RADIUS, velocity.getY(), velocity, position, rules.BALL_ARENA_E, rules.BALL_MASS);
+        for (int i = 0; i < 30; i++) {
+            double t = 1.0 / rules.TICKS_PER_SECOND * i;
+            move(ballEntity, t, rules);
+            if (SimulationUtils.goal(ballEntity.position, rules.arena, rules.BALL_RADIUS, leftRight))
+                return true;
+        }
+        return false;
     }
 
 
@@ -114,7 +129,7 @@ public class SimulationUtils {
         return null;
     }
 
-    public static boolean collideCentities(Entity a, Entity b, Random random, Rules rules) {
+    public static boolean collideEntities(Entity a, Entity b, Random random, Rules rules) {
         Vec3D delta_position = b.position.minus(a.position);
         double distance = delta_position.length();
         double penetration = a.radius + b.radius - distance;
@@ -155,8 +170,8 @@ public class SimulationUtils {
         Vec3D v = new Vec3D(point.getX(), point.getY(), 0).minus(z);
         if (Math.abs(point.getX()) >= arena.goal_width / 2 + arena.goal_side_radius ||
             point.getY() >= arena.goal_height + arena.goal_side_radius ||
-            (v.length() >= arena.goal_top_radius + arena.goal_side_radius)) {
-            dan = min(dan, danToPlane(point, new Vec3D(0, 0, depth / 2), new Vec3D(0, 0, leftRight)));
+            (v.getX() > 0 && v.getY() > 0 && v.length() >= arena.goal_top_radius + arena.goal_side_radius)) {
+            dan = min(dan, danToPlane(point, new Vec3D(0, 0, depth / 2), new Vec3D(0, 0, -leftRight)));
         }
         return dan;
     }
@@ -193,7 +208,7 @@ public class SimulationUtils {
                 o = o.plus(v.unit()).multiply(arena.goal_side_radius + arena.bottom_radius);
                 dan = min(dan, danToSphereInner(
                         point,
-                        new Vec3D(o.getX(), o.getY(), arena.bottom_radius),
+                        new Vec3D(o.getX(), arena.bottom_radius, o.getZ()),
                         arena.bottom_radius));
             }
 
@@ -215,11 +230,10 @@ public class SimulationUtils {
                 Vec3D n = new Vec3D(point.getX(), 0, point.getZ()).minus(corner_o);
                 double dist = n.length();
                 if (dist > arena.corner_radius - arena.bottom_radius) {
-                    n = n.multiply(1 / dist);
-                    Vec3D o2 = corner_o.plus(n.multiply(arena.corner_radius - arena.bottom_radius));
+                    Vec3D o2 = corner_o.plus(n.unit().multiply(arena.corner_radius - arena.bottom_radius));
                     dan = min(dan, danToSphereInner(
                             point,
-                            new Vec3D(o2.getX(), o2.getY(), arena.bottom_radius),
+                            new Vec3D(o2.getX(), arena.bottom_radius, o2.getZ()),
                             arena.bottom_radius));
                 }
             }

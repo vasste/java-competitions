@@ -18,6 +18,7 @@ public class DefenderStrategy implements RobotStrategy {
             defenderState = DefenderStates.init;
         }
         Vec3D mp = new Vec3D(me);
+        Vec3D bp = new Vec3D(game.ball);
 
         Vec3D velocity = null;
         goalPointAndTime = evaluation(game.ball, mp, rules, ballPoints, leftRight, renderingCollection, random);
@@ -25,20 +26,26 @@ public class DefenderStrategy implements RobotStrategy {
         switch (defenderState) {
             case init:
                 double goalZ = leftRight * rules.arena.depth / 2 + rules.arena.bottom_radius;
-                velocity = new Vec3D(0, 0, goalZ).minus(mp).unit().multiply(rules.ROBOT_MAX_GROUND_SPEED);
+                double goalKeeperX = SimulationUtils.clamp(bp.getX(), -rules.arena.goal_width/2, rules.arena.goal_width/2);
+                velocity = new Vec3D(goalKeeperX, 0, goalZ).minus(mp).unit().multiply(rules.ROBOT_MAX_GROUND_SPEED);
                 goalPointAndTime = null;
                 break;
             case defend:
                 if (goalPointAndTime != null) {
                     Vec3D deltaPos = goalPointAndTime.v.minus(new Vec3D(mp));
-                    double speed = deltaPos.length()/goalPointAndTime.t;
-                    velocity = deltaPos.unit().multiply(speed);
+                    double speed = deltaPos.length();
+                    if (goalPointAndTime.t > 0) speed /= goalPointAndTime.t;
+                    velocity = deltaPos.unit().multiply(SimulationUtils.clamp(speed,
+                            0.5*rules.ROBOT_MAX_GROUND_SPEED, rules.ROBOT_MAX_GROUND_SPEED));
                     renderingCollection.put(random.nextDouble(), new DrawUtils.Line(mp, velocity).h());
                 }
         }
         if (velocity != null) {
             SimulationUtils.clamp(velocity, -rules.ROBOT_MAX_GROUND_SPEED, rules.ROBOT_MAX_GROUND_SPEED);
             velocity.apply(action);
+            boolean jump = mp.minus(bp).length() < rules.BALL_RADIUS + rules.ROBOT_MAX_RADIUS && me.z <= game.ball.z;
+            if (jump)
+                action.jump_speed = rules.ROBOT_MAX_JUMP_SPEED;
         }
     }
 
@@ -58,10 +65,12 @@ public class DefenderStrategy implements RobotStrategy {
         defenderState = DefenderStates.init;
         for (int j = 0; j < possibleGoal; j++) {
             PointWithTime pWt = ballPoints.get(j);
+            if (Math.abs(pWt.v.getZ()) <= rules.arena.depth/4) continue;
             defenderState = DefenderStates.defend;
             renderingCollection.put(pWt.t + random.nextDouble(),
                     new DrawUtils.Line(me, pWt.v, 5, Color.GREEN).h());
-            double needSpeed = pWt.v.minus(me).length() / pWt.t;
+            double needSpeed = pWt.v.minus(me).length();
+            if (pWt.t > 0) needSpeed /= pWt.t;
             if (needSpeed < rules.ROBOT_MAX_GROUND_SPEED) {
                 defenderState = DefenderStates.defend;
                 renderingCollection.put(pWt.t, new DrawUtils.Sphere(pWt.v, ball.radius, Color.GREEN).h());
