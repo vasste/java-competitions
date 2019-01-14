@@ -8,7 +8,7 @@ import java.util.*;
 
 public final class MyStrategy implements Strategy {
 
-    private final RobotStrategy[] strategies = {new DefenderStrategy(), new AttackerStrategy()};
+    private final RobotStrategy[] strategies = {new DefenderStrategy(), new Empty()};
     Map<Double, Object> renderingCollection = new HashMap<>();
     List<PointWithTime> ballPoints = new ArrayList<>();
     int simulationTick = 0;

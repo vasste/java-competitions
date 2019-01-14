@@ -69,6 +69,10 @@ public class Vec3D {
 		return FastMath.hypot(x, y, z);
 	}
 
+	public double groundLength() {
+		return FastMath.hypot(x, 0, z);
+	}
+
 	public Vec3D setLength(double length) {
 		if (length() == 0) {
 			if (length == 0) {
@@ -86,6 +90,11 @@ public class Vec3D {
 	public Vec3D unit() {
 		double length = length();
 		return new Vec3D(x / length, y / length, z / length);
+	}
+
+	public Vec3D unitGround() {
+		double length = length();
+		return new Vec3D(x / length, 0, z / length);
 	}
 
 	public Vec3D multiply(double scale) {

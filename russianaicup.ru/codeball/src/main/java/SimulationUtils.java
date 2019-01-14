@@ -59,7 +59,8 @@ public class SimulationUtils {
         clamp(e.velocity, -rules.MAX_ENTITY_SPEED, rules.MAX_ENTITY_SPEED);
         e.updatePosition(deltaTime);
         e.position.setY(clamp(e.position.getY() - rules.GRAVITY * deltaTime * deltaTime / 2, e.radius, rules.arena.height - e.radius));
-        e.velocity.setY(clamp(e.velocity.getY() - rules.GRAVITY * deltaTime, e.radius, rules.arena.height - e.radius));
+        e.velocity.setY(clamp(e.velocity.getY() - rules.GRAVITY * deltaTime, -rules.ROBOT_MAX_JUMP_SPEED,
+                rules.ROBOT_MAX_JUMP_SPEED));
     }
 
     public static int simulate(Ball ball, Rules rules, Game game, Map<Double, Object> renderingCollection,

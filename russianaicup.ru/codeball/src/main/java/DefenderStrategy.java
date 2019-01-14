@@ -32,21 +32,20 @@ public class DefenderStrategy implements RobotStrategy {
                 break;
             case defend:
                 if (goalPointAndTime != null) {
-                    Vec3D deltaPos = goalPointAndTime.v.minus(new Vec3D(mp));
-                    double speed = deltaPos.length();
-                    if (goalPointAndTime.t > 0) speed /= goalPointAndTime.t;
-                    velocity = deltaPos.unit().multiply(SimulationUtils.clamp(speed,
-                            0.5*rules.ROBOT_MAX_GROUND_SPEED, rules.ROBOT_MAX_GROUND_SPEED));
+                    Vec3D deltaPos = goalPointAndTime.v.minus(mp);
+                    double groundSpeed = deltaPos.groundLength();
+					double needJumpSpeed = Math.abs(deltaPos.getY());
+					if (goalPointAndTime.t > 0) groundSpeed /= goalPointAndTime.t;
+                    velocity = deltaPos.unitGround().multiply(groundSpeed);
+                    if (velocity.length() < 0.5 && needJumpSpeed > me.radius) {
+						if (goalPointAndTime.t > 0) needJumpSpeed /= goalPointAndTime.t;
+						action.jump_speed = needJumpSpeed;
+					}
                     renderingCollection.put(random.nextDouble(), new DrawUtils.Line(mp, velocity).h());
                 }
         }
-        if (velocity != null) {
-            SimulationUtils.clamp(velocity, -rules.ROBOT_MAX_GROUND_SPEED, rules.ROBOT_MAX_GROUND_SPEED);
+        if (velocity != null)
             velocity.apply(action);
-            boolean jump = mp.minus(bp).length() < rules.BALL_RADIUS + rules.ROBOT_MAX_RADIUS && me.z <= game.ball.z;
-            if (jump)
-                action.jump_speed = rules.ROBOT_MAX_JUMP_SPEED;
-        }
     }
 
     PointWithTime evaluation(Ball ball, Vec3D me, Rules rules,
@@ -67,17 +66,19 @@ public class DefenderStrategy implements RobotStrategy {
             PointWithTime pWt = ballPoints.get(j);
             if (Math.abs(pWt.v.getZ()) <= rules.arena.depth/4) continue;
             defenderState = DefenderStates.defend;
-            renderingCollection.put(pWt.t + random.nextDouble(),
-                    new DrawUtils.Line(me, pWt.v, 5, Color.GREEN).h());
-            double needSpeed = pWt.v.minus(me).length();
-            if (pWt.t > 0) needSpeed /= pWt.t;
-            if (needSpeed < rules.ROBOT_MAX_GROUND_SPEED) {
+            renderingCollection.put(pWt.t + random.nextDouble(), new DrawUtils.Line(me, pWt.v, 5, Color.GREEN).h());
+			Vec3D deltaPos = pWt.v.minus(me);
+            double needGroundSpeed = deltaPos.groundLength();
+            double needJumpSpeed = Math.abs(deltaPos.getY());
+            if (pWt.t > 0) needGroundSpeed /= pWt.t;
+			if (pWt.t > 0) needJumpSpeed /= pWt.t;
+            if (needGroundSpeed <= rules.ROBOT_MAX_GROUND_SPEED && needJumpSpeed <= rules.ROBOT_MAX_JUMP_SPEED) {
                 defenderState = DefenderStates.defend;
                 renderingCollection.put(pWt.t, new DrawUtils.Sphere(pWt.v, ball.radius, Color.GREEN).h());
                 return pWt;
             } else {
-                if (minRequiredSpeed > needSpeed) {
-                    minRequiredSpeed = needSpeed;
+                if (minRequiredSpeed > needGroundSpeed) {
+                    minRequiredSpeed = needGroundSpeed;
                     minSpeedPwt = pWt;
                 }
             }
