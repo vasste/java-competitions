@@ -22,23 +22,16 @@ public class TestMovementStrategy implements RobotStrategy {
 
 		if (actionTick == 0) {
 			new Vec3D(0, 0, 0).apply(action);
-			action.jump_speed = rules.ROBOT_MAX_JUMP_SPEED;
+			action.jump_speed = 15;
 		}
-		Vec3D mp = new Vec3D(me);
+//		Vec3D mp = new Vec3D(me);
 		Vec3D mv = Vec3D.velocity(me);
-
+		me.velocity_y = 15;
+//
 		Entity re = new Entity(me, rules);
-		if (re.velocity.getY() > 0) {
-			for (int i = 0; i < 60; i++) {
-				double t = 1.0 / rules.TICKS_PER_SECOND * i;
-				SimulationUtils.move(re, t, rules);
-				if (re.velocity.getY() < 0) {
-					renderingCollection.put(random.nextDouble(), new DrawUtils.TH((i + game.current_tick) + ""));
-					possibleActionTick = i + game.current_tick;
-					break;
-				}
-			}
-		}
+		int i = 1;
+		double t = 1.0 / rules.TICKS_PER_SECOND * i;
+		SimulationUtils.move(re, t, rules);
 		if (mv.getY() < 0) {
 			renderingCollection.put(random.nextDouble(), new DrawUtils.TH(game.current_tick + ""));
 			actionTick = 0;

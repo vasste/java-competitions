@@ -81,15 +81,13 @@ public class SimulationUtils {
             move(ballEntity, t, rules);
             for (int j = 0; j < robotEntities.length; j++) {
                 move(robotEntities[j], t, rules);
-                renderingCollection.put(t, new DrawUtils.Sphere(robotEntities[j].position,
+                renderingCollection.put(t + random.nextDouble(), new DrawUtils.Sphere(robotEntities[j].position,
                         robotEntities[j].radius, Color.ORANGE).h());
             }
             Vec3D normal = SimulationUtils.collideWithArena(ballEntity, rules.arena, renderingCollection);
-            if (normal == null) {
-                for (int j = 0; j < robotEntities.length; j++) {
-                    Entity robotEntity = robotEntities[j];
-                    SimulationUtils.collideEntities(ballEntity, robotEntity, random, rules);
-                }
+            for (int j = 0; j < robotEntities.length; j++) {
+                Entity robotEntity = robotEntities[j];
+                SimulationUtils.collideEntities(ballEntity, robotEntity, random, rules);
             }
             ballPoints.add(new PointWithTime(ballEntity.position, t, ballEntity.velocity));
             renderingCollection.put(t, new DrawUtils.Sphere(ballEntity.position, ball.radius, Color.RED).h());
