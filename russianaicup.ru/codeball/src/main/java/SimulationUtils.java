@@ -37,7 +37,7 @@ public class SimulationUtils {
     }
 
     public static boolean goal(Vec3D ball, Arena arena, double radius, int leftRight) {
-        return Math.abs(ball.getZ()) > arena.depth/2 - radius && Math.signum(ball.getZ()) == leftRight &&
+        return Math.abs(ball.getZ()) > arena.depth/2 + radius && Math.signum(ball.getZ()) == leftRight &&
                Math.abs(ball.getX()) <= arena.goal_width/2 + radius;
     }
 
@@ -63,6 +63,10 @@ public class SimulationUtils {
                 rules.ROBOT_MAX_JUMP_SPEED));
     }
 
+    public static double robotRadious(Rules rules, double jumpSpeed) {
+        return rules.ROBOT_MIN_RADIUS + (rules.ROBOT_MAX_RADIUS - rules.ROBOT_MIN_RADIUS)*jumpSpeed/rules.ROBOT_MAX_JUMP_SPEED;
+    }
+
     public static int simulate(Ball ball, Rules rules, Game game, Map<Double, Object> renderingCollection,
                                Random random, List<PointWithTime> ballPoints, int simulationTick) {
         if (simulationTick == game.current_tick) return simulationTick;
@@ -76,7 +80,7 @@ public class SimulationUtils {
             else if (enemy.id % 2 == 1)
                 robotEntities[2] = new Entity(enemy, rules);
         }
-        for (int i = 0; i < 60; i++) {
+        for (int i = 0; i < 120; i++) {
             double t = 1.0/rules.TICKS_PER_SECOND * i;
             move(ballEntity, t, rules);
             for (int j = 0; j < robotEntities.length; j++) {
@@ -84,13 +88,15 @@ public class SimulationUtils {
                 renderingCollection.put(t + random.nextDouble(), new DrawUtils.Sphere(robotEntities[j].position,
                         robotEntities[j].radius, Color.ORANGE).h());
             }
-            Vec3D normal = SimulationUtils.collideWithArena(ballEntity, rules.arena, renderingCollection);
             for (int j = 0; j < robotEntities.length; j++) {
                 Entity robotEntity = robotEntities[j];
                 SimulationUtils.collideEntities(ballEntity, robotEntity, random, rules);
+                renderingCollection.put(t + random.nextDouble(), new DrawUtils.Sphere(robotEntities[j].position,
+                        robotEntities[j].radius, Color.ORANGE).h());
             }
+            Vec3D normal = SimulationUtils.collideWithArena(ballEntity, rules.arena, renderingCollection);
             ballPoints.add(new PointWithTime(ballEntity.position, t, ballEntity.velocity));
-            renderingCollection.put(t, new DrawUtils.Sphere(ballEntity.position, ball.radius, Color.RED).h());
+            renderingCollection.put(t, new DrawUtils.Sphere(ballEntity.position, ball.radius, Color.GREEN).h());
         }
         return game.current_tick;
     }
@@ -104,6 +110,17 @@ public class SimulationUtils {
                 return true;
         }
         return false;
+    }
+
+    public static Entity simulateDefenceHit(Robot me, Entity ballEntity, Rules rules, Random random) {
+        Entity robotEntity = new Entity(me, rules);
+        for (int i = 0; i < 30; i++) {
+            double t = 1.0 / rules.TICKS_PER_SECOND * i;
+            move(robotEntity, t, rules);
+            if (SimulationUtils.collideEntities(ballEntity, robotEntity, random, rules))
+                return robotEntity;
+        }
+        return null;
     }
 
 

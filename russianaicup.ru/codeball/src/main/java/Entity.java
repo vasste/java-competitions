@@ -23,6 +23,10 @@ public class Entity {
         this(robot.radius, robot.velocity_y, Vec3D.velocity(robot), new Vec3D(robot), rules.ROBOT_ARENA_E, rules.ROBOT_MASS);
     }
 
+    public Entity(PointWithTime pwt, Rules rules) {
+        this(rules.BALL_RADIUS, pwt.vl.getY(), pwt.vl, pwt.v, rules.BALL_ARENA_E, rules.BALL_MASS);
+    }
+
     public Entity(Ball ball, Rules rules) {
         this(ball.radius, ball.velocity_y, Vec3D.velocity(ball), new Vec3D(ball), rules.BALL_ARENA_E, rules.BALL_MASS);
     }
