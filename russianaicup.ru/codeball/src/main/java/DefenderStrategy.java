@@ -27,7 +27,7 @@ public class DefenderStrategy implements RobotStrategy {
 
         switch (state) {
             case defend:
-                double goalZ = leftRight * rules.arena.depth / 2;
+                double goalZ = leftRight * rules.arena.depth / 2 + rules.arena.bottom_radius;
                 double goalKeeperX = SimulationUtils.clamp(bp.getX(), -rules.arena.goal_width/2, rules.arena.goal_width/2);
                 velocity = new Vec3D(goalKeeperX, 0, goalZ).minus(mp).unit().multiply(rules.ROBOT_MAX_GROUND_SPEED);
                 actionData = null;
@@ -40,7 +40,7 @@ public class DefenderStrategy implements RobotStrategy {
                         Vec3D deltaPos = hitPosition.position.minus(mp);
                         double V0 = mv.groundLength();
                         actionState = DefenderStates.defend;
-                        velocity = deltaPos.unitGround().multiply(2*V0);
+                        //velocity = deltaPos.unitGround().multiply(2*V0);
                         break;
                     }
                 }
@@ -51,9 +51,13 @@ public class DefenderStrategy implements RobotStrategy {
                     double S = deltaPos.groundLength();
                     velocity = deltaPos.unitGround();
                     if (actionData.deltaAccTime > 0)
-                        velocity = velocity.multiply(rules.ROBOT_MAX_GROUND_SPEED);
-                    else
-                        velocity = velocity.multiply(actionData.groundV0);
+                        velocity = velocity.multiply(actionData.deltaAccTime * rules.ROBOT_ACCELERATION);
+                    else {
+                        //if (actionData.deltaBreakTime > 0)
+                           // velocity = velocity.multiply(0);
+                        //0felse
+                            velocity = velocity.multiply(actionData.groundV0);
+                    }
 					double SY = Math.abs(deltaPos.getY());
                     if (S < rules.ROBOT_MIN_RADIUS &&
                         SY > rules.ROBOT_MIN_RADIUS &&
@@ -91,7 +95,7 @@ public class DefenderStrategy implements RobotStrategy {
             renderingCollection.put(time, new DrawUtils.Sphere(pWt.v, ball.radius, Color.RED).h());
 			double SY = Math.abs(deltaPos.getY());
             double jumpTime = 0;
-            double ballMweAngle = Math.abs(pWt.vl.unitGround().angleToVector(velocity));
+            double ballMeAngle = Math.abs(pWt.vl.angleToVector(velocity));
             if (SY > rules.ROBOT_MIN_RADIUS) {
                 jumpTime = StrictMath.sqrt(2*SY/rules.GRAVITY);
 //                groundTime -= jumpTime;
@@ -99,24 +103,35 @@ public class DefenderStrategy implements RobotStrategy {
             }
             double S = deltaPos.groundLength();
             double V0 = velocity.groundLength();
-            double accelerationTime = Math.min((30 - V0)/rules.ROBOT_ACCELERATION, time);
-            double maxS = V0 * accelerationTime + rules.ROBOT_ACCELERATION*accelerationTime*accelerationTime/2 +
-                    rules.ROBOT_MAX_GROUND_SPEED * (time - accelerationTime);
+            double accTime = Math.min((rules.ROBOT_MAX_GROUND_SPEED - V0)/rules.ROBOT_ACCELERATION, time);
+            double breakTime = Math.min(V0/rules.ROBOT_ACCELERATION, time);
+            //if (Math.abs(ballMeAngle) > Math.PI/2) breakTime = 0;
+//            if (time - accTime - breakTime <= 0) accTime = 0;
+//            if (time - breakTime > 0) breakTime = 0;
+
+            double maxS = S(V0, accTime, rules.ROBOT_ACCELERATION) +
+                    rules.ROBOT_MAX_GROUND_SPEED * Math.max(0, time - accTime);
+                    //S(V0, breakTime, ruleaas.ROBOT_ACCELERATION);
             if (S < maxS)
             {
                 pWt = ballPoints.get(Math.min(possibleGoal, j - 1));
-                renderingCollection.put(pWt.t, new DrawUtils.Sphere(pWt.v, ball.radius, Color.DARK_GRAY).h());
+                renderingCollection.put(pWt.t, new DrawUtils.Sphere(pWt.v, ball.radius, Color.BLACK).h());
                 actionState = DefenderStates.attack_defend;
-                return new ActionData(time, time,jumpTime, accelerationTime, V0, rules.GRAVITY * jumpTime, pWt.v, pWt.vl);
+                return new ActionData(time, time, jumpTime, accTime, breakTime, V0, rules.GRAVITY * jumpTime, pWt.v, pWt.vl);
             }
         }
         return null;
+    }
+
+    public static double S(double V0, double t, double a) {
+        return V0*t + a*t*t/2;
     }
 
     class ActionData {
         double deltaJumpTime;
         double deltaGroundTime;
         double deltaAccTime;
+        double deltaBreakTime;
         double deltaTime;
         double groundV0;
         double jumpV0;
@@ -124,11 +139,12 @@ public class DefenderStrategy implements RobotStrategy {
         Vec3D ballVelocity;
 
         public ActionData(double deltaTime, double deltaGroundTime, double deltaJumpTime, double deltaAccTime,
-                          double groundV0, double jumpV0, Vec3D goalPosition, Vec3D ballVelocity) {
+                          double deltaBreakTime, double groundV0, double jumpV0, Vec3D goalPosition, Vec3D ballVelocity) {
             this.deltaTime = deltaTime;
             this.deltaGroundTime = deltaGroundTime;
             this.deltaJumpTime = deltaJumpTime;
             this.deltaAccTime = deltaAccTime;
+            this.deltaBreakTime = deltaBreakTime;
             this.groundV0 = groundV0;
             this.jumpV0 = jumpV0;
             this.goalPosition = goalPosition;

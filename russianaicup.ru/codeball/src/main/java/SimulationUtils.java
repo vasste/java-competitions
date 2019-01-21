@@ -80,7 +80,7 @@ public class SimulationUtils {
             else if (enemy.id % 2 == 1)
                 robotEntities[2] = new Entity(enemy, rules);
         }
-        for (int i = 0; i < 120; i++) {
+        for (int i = 0; i < 60; i++) {
             double t = 1.0/rules.TICKS_PER_SECOND * i;
             move(ballEntity, t, rules);
             for (int j = 0; j < robotEntities.length; j++) {
