@@ -72,15 +72,12 @@ public class SimulationUtils {
         if (simulationTick == game.current_tick) return simulationTick;
         ballPoints.clear();
         Entity ballEntity = new Entity(ball, rules);
-        Entity[] robotEntities = new Entity[3];
+        Entity[] robotEntities = new Entity[game.robots.length];
         for (int i = 0; i < game.robots.length; i++) {
             Robot enemy = game.robots[i];
-            if (!enemy.is_teammate)
-                robotEntities[enemy.id % 2] = new Entity(enemy, rules);
-            else if (enemy.id % 2 == 1)
-                robotEntities[2] = new Entity(enemy, rules);
+            robotEntities[i] = new Entity(enemy, rules);
         }
-        for (int i = 0; i < 120; i++) {
+        for (int i = 0; i < 60; i++) {
             double t = 1.0/rules.TICKS_PER_SECOND * i;
             move(ballEntity, t, rules);
             for (int j = 0; j < robotEntities.length; j++) {
