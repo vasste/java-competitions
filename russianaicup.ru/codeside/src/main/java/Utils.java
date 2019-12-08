@@ -1,6 +1,7 @@
 import model.*;
 
 import java.awt.*;
+import java.util.List;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -20,6 +21,10 @@ public class Utils {
 
 	static Vec2Double up(Vec2Double from) {
 		return new Vec2Double(from.getX(), yU(from, 1));
+	}
+
+	static Vec2Double jump(Vec2Double from, int height) {
+		return new Vec2Double(from.getX(), yU(from, height));
 	}
 
 	static Vec2Double down(Vec2Double from) {
@@ -62,11 +67,71 @@ public class Utils {
 		return obj.getPosition().getX();
 	}
 
+	static void print(char[][] level) {
+		for (int j = level[1].length - 1; j >= 0 ; j--) {
+			for (int i = 0; i < level.length; i++) {
+				System.out.print(level[i][j]);
+			}
+			System.out.println();
+		}
+	}
+
+	static char[][] fromTiles(Tile[][] tiles) {
+		char[][] level = new char[tiles.length][];
+		for (int i = 0; i < tiles.length; i++) {
+			level[i] = new char[tiles[i].length];
+			for (int j = 0; j < tiles[i].length; j++) {
+				switch (tiles[i][j]) {
+					case EMPTY:
+						level[i][j] = '.';
+						break;
+					case WALL:
+						level[i][j] = '#';
+						break;
+					case PLATFORM:
+						level[i][j] = '^';
+						break;
+					case LADDER:
+						level[i][j] = 'H';
+						break;
+				}
+			}
+		}
+		return level;
+	}
+
 	static Tile[][] readTiles(String fileName) {
 		try {
-			List<String> lines = Files.readAllLines(Paths.get(fileName));
+			List<String> lines = Files.readAllLines(Paths.get(fileName)); // y
+			int xl = lines.get(0).length();
+			int yl = lines.size();
+			Tile[][] tiles = new Tile[xl][yl];
+			int y = 0;
+			for (int j = lines.size() - 1; j >= 0; j--) {
+				String line = lines.get(j);
+				for (int i = 0; i < line.length(); i++) {
+					Tile tile = Tile.EMPTY;
+					switch (line.charAt(i)) {
+						case '.':
+							tile = Tile.EMPTY;
+							break;
+						case 'H':
+							tile = Tile.LADDER;
+							break;
+						case '^':
+							tile = Tile.PLATFORM;
+							break;
+						case '#':
+							tile = Tile.WALL;
+							break;
+					}
+					tiles[i][y] = tile;
+				}
+				y++;
+			}
+			return tiles;
 		} catch (IOException e) {
-			e.printStackTrace();
+			return null;
 		}
 	}
 }

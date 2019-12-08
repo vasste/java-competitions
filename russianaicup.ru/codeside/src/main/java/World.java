@@ -8,17 +8,19 @@ import java.util.Queue;
 
 public class World {
 
-	private Vec2Double unit;
 	private Tile[][] tiles;
 	private TilePoint start;
-	double jumpHeight;
-	double jumpPadHeight;
+	int jumpHeight;
+	int jumpPadHeight;
+	int maxSpeed;
+	boolean debugEnabled;
 
-	public World(Vec2Double unit, Tile[][] tiles, Properties properties) {
-		this.unit = unit;
+	public World(Vec2Double unit, Tile[][] tiles, Properties properties, boolean debug) {
 		this.tiles = tiles;
-		this.jumpPadHeight = properties.getJumpPadJumpSpeed()*properties.getJumpPadJumpTime();
-		this.jumpHeight = properties.getUnitJumpSpeed()*properties.getUnitJumpTime();
+		this.jumpPadHeight = (int)(properties.getJumpPadJumpSpeed()*properties.getJumpPadJumpTime());
+		this.jumpHeight = (int)(properties.getUnitJumpSpeed()*properties.getUnitJumpTime());
+		this.maxSpeed = 10;
+		this.debugEnabled = debug;
 		start = buildPaths(unit);
 	}
 
@@ -26,13 +28,50 @@ public class World {
 		drawPaths(start, debug);
 	}
 
+	void drawPaths(char[][] debug) {
+		drawPaths(start, debug);
+	}
+
+	private void drawPaths(TilePoint from, char[][] level) {
+		boolean[][] visited = startDetour();
+		if (!debugEnabled)
+			return;
+		for (TilePoint point : from.reached) {
+			if (!visited[point.x()][point.y()]) {
+				visited[point.x()][point.y()] = true;
+				if (point.y() == from.point.getY())
+					level[from.x()][point.y()] = '-';
+				if (point.x() == from.point.getX())
+					level[from.x()][point.y()] = '|';
+				drawPaths(point, level);
+			}
+		}
+	}
+
 	private void drawPaths(TilePoint from, Debug debug) {
+		if (!this.debugEnabled)
+			return;
 		boolean[][] visited = startDetour();
 		for (TilePoint point : from.reached) {
 			if (!visited[point.x()][point.y()]) {
 				visited[point.x()][point.y()] = true;
 				debug.draw(createLine(from, point));
 				drawPaths(point, debug);
+			}
+		}
+	}
+
+	private List<TilePoint> findPath(Vec2Double to) {
+		boolean[][] visited = startDetour();
+		Queue<TilePoint> tilePoints = new LinkedList<>();
+		tilePoints.add(start);
+		while (!tilePoints.isEmpty()) {
+			TilePoint from = tilePoints.remove();
+			if (Utils.VC.compare(to, from.point) == 0)
+				return null;
+			if (!visited[from.x()][from.y()]) {
+				visited[from.x()][from.y()] = true;
+				tilePoints.addAll(from.reached);
 			}
 		}
 	}
@@ -49,21 +88,41 @@ public class World {
 			if (!visited[from.x()][from.y()]) {
 				visited[from.x()][from.y()] = true;
 				Tile tileBelowUnit = Utils.unitTile(Utils.down(from.point), tiles);
-				Tile unitTile = Utils.unitTile(Utils.down(from.point), tiles);
+				Tile unitTile = Utils.unitTile(from.point, tiles);
 				switch (unitTile) {
 					case LADDER:
-						addPoint(tilePoints, from, Utils.up(from.point));
-						addPoint(tilePoints, from, Utils.down(from.point));
+						for (int i = 1; i <= jumpHeight; i++)
+							addPoint(tilePoints, from, Utils.jump(from.point, i), Action.JUMP_UP);
+						for (int i = 1; i <= jumpHeight; i++)
+							addPoint(tilePoints, from, Utils.jump(from.point, -i), Action.JUMP_DOWN);
 						break;
 					case JUMP_PAD:
-						addPoint(tilePoints, from, Utils.up(from.point));
+						for (int i = 1; i <= jumpPadHeight; i++)
+							addPoint(tilePoints, from, Utils.jump(from.point, i), Action.JUMP_UP);
 						break;
 					case EMPTY:
-						if (tileBelowUnit == Tile.PLATFORM)
-							addPoint(tilePoints, from, Utils.up(from.point));
+						if (tileBelowUnit == Tile.EMPTY) {
+							int stride = 1;
+							while (addPoint(tilePoints, from, new Vec2Double(from.x(),
+									Utils.yU(from.point, -stride++)), Action.FALL));
+						}
 				}
-				addPoint(tilePoints, from, Utils.left(from.point));
-				addPoint(tilePoints, from, Utils.right(from.point));
+				switch (tileBelowUnit) {
+					case LADDER:
+						for (int i = 1; i <= jumpHeight; i++)
+							addPoint(tilePoints, from, Utils.jump(from.point, i), Action.JUMP_UP);
+						for (int i = 1; i <= jumpHeight; i++)
+							addPoint(tilePoints, from, Utils.jump(from.point, -i), Action.JUMP_DOWN);
+					case PLATFORM:
+					case WALL:
+						addPoint(tilePoints, from, Utils.left(from.point), Action.WALK);
+						addPoint(tilePoints, from, Utils.right(from.point), Action.WALK);
+						for (int i = 1; i <= jumpHeight; i++)
+							addPoint(tilePoints, from, Utils.jump(from.point, i), Action.JUMP_UP);
+						// maxSpeed = 1
+						addPoint(tilePoints, from, Utils.up(Utils.left(from.point)), Action.WALK);
+						addPoint(tilePoints, from, Utils.up(Utils.right(from.point)), Action.WALK);
+				}
 			}
 		}
 		return startPoint;
@@ -76,18 +135,23 @@ public class World {
 		return visited;
 	}
 
-	private void addPoint(Queue<TilePoint> tilePoints, TilePoint from, Vec2Double to) {
+	private boolean addPoint(Queue<TilePoint> tilePoints, TilePoint from, Vec2Double to, Action action) {
+		if (tiles.length <= to.getX() || tiles[0].length <= to.getY() || to.getX() < 0 || to.getY() < 0)
+			return false;
 		Tile unitTile = Utils.unitTile(to, tiles);
 		switch (unitTile) {
 			case WALL:
 			case PLATFORM:
-				return;
+				return false;
 		}
 		if (Utils.VC.compare(to, from.point) != 0) {
 			TilePoint point = new TilePoint(to);
+			point.action = action;
 			from.reached.add(point);
 			tilePoints.add(point);
+			return true;
 		}
+		return false;
 	}
 
 	static CustomData.Line createLine(TilePoint from, TilePoint to) {
@@ -117,6 +181,7 @@ public class World {
 		}
 
 		Vec2Double point;
+		Action action;
 		List<TilePoint> reached = new ArrayList<>();
 	}
 }
