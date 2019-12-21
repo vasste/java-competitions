@@ -1,26 +1,50 @@
+import model.JumpState;
 import model.Properties;
 import model.Tile;
 import model.Vec2Double;
+import org.junit.Assert;
 import org.junit.Test;
+import strategy.world.Path;
+import strategy.world.WorldUtils;
+import strategy.world.Edge;
+import strategy.world.World;
 
 import java.io.IOException;
+import java.util.List;
 
 public class WorldTest {
 
 	@Test
 	public void buildWorldTest() throws IOException {
-		Tile[][] tiles = Utils.readTiles("level-wall.txt");
-		Vec2Double unit = new Vec2Double();
-		unit.setX(1);
-		unit.setY(1);
+		String fileName = "level-jump*.txt";
+		Tile[][] tiles = TestUtils.readTiles(fileName);
+		Vec2Double unit = TestUtils.findPosition(fileName, 'P');
 		Properties properties = new Properties();
 		properties.setJumpPadJumpSpeed(1);
-		properties.setJumpPadJumpTime(1);
+		properties.setJumpPadJumpTime(10);
 		properties.setUnitJumpSpeed(1);
 		properties.setUnitJumpTime(5);
-		World world = new World(unit, tiles, properties);
-		char[][] level = Utils.fromTiles(tiles);
-		world.drawPaths(level);
-		Utils.print(level);
+		properties.setUnitSize(new Vec2Double(0.9, 1.8));
+		Vec2Double unitSpeed = new Vec2Double(0 ,0);
+		World world = new World(unit, unitSpeed, tiles, properties, 50, true);
+		//List<LootBox> boxes = Utils.readLootBoxes(fileName);
+		char[][] level = TestUtils.fromTiles(tiles);
+		Vec2Double to = TestUtils.findPosition(fileName, '*');
+		level[(int)to.getX()][(int)to.getY()] = '*';
+		Path path = new Path(world);
+		Draw draw = new Draw(true, world, tiles);
+		draw.paths(level);
+		TestUtils.print(level);
+		double unitStartSpeed = 1;
+		List<Edge> edges = path.find(to);
+		Assert.assertFalse(edges.isEmpty());
+		Assert.assertTrue(unitStartSpeed >= edges.iterator().next().minSpeed);
+		level = TestUtils.fromTiles(tiles);
+		draw.paths(edges, level);
+		TestUtils.print(level);
+//		strategy.world.drawPaths(level);
+//		for (LootBox box : boxes) {
+//			System.out.println();
+//		}
 	}
 }
