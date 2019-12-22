@@ -22,16 +22,17 @@ public class UnderstandMoveStrategy {
 		unitAction = NO_ACTION;
 
 		double ticksInSec = game.getProperties().getTicksPerSecond();
+		JumpState state = unit.getJumpState();
 		double horzUnitSpeed = Math.abs(unit.getPosition().getX() - unitInTick.getPosition().getX());
 		double vertUnitSpeed = Math.abs(unit.getPosition().getY() - unitInTick.getPosition().getY());
-		Vec2Double unitSpeed = new Vec2Double(horzUnitSpeed, vertUnitSpeed);
+		Vec2Double unitSpeed = new Vec2Double(horzUnitSpeed, Math.max(state.getSpeed(), vertUnitSpeed));
 
 		debug.draw(DebugUtils.write(horzUnitSpeed + "", 1, 10));
 		debug.draw(DebugUtils.write(vertUnitSpeed + "", 1, 11f));
 
 		Level level = game.getLevel();
 		World world = new World(unit.getPosition(), unitSpeed,
-				level.getTiles(), game.getProperties(), 30, debugEnabled);
+				level.getTiles(), game.getProperties(), 50, debugEnabled);
 		Draw draw = new Draw(debugEnabled, world, level.getTiles());
 		Path path = new Path(world);
 		List<Edge> edgeList = Collections.emptyList();
@@ -61,10 +62,7 @@ public class UnderstandMoveStrategy {
 			}
 
 			double velocity = firstStride.action.jump() ? game.getProperties().getJumpPadJumpSpeed() : firstStride.maxSpeed;
-			double direction = firstStride.horzDirection();
-			if (firstStride.action.jump())
-			  	direction = direction == 0 ? firstStride.vertDirection() : direction;
-
+			double direction = Math.signum(opponent.getPosition().getX() - unit.getPosition().getX());
 			unitAction = new UnitAction(direction * velocity,
 					firstStride.action == Action.JUMP_UP,
 					firstStride.action == Action.JUMP_DOWN, aim,

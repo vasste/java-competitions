@@ -4,6 +4,7 @@ import model.Tile;
 import model.Vec2Double;
 import org.junit.Assert;
 import org.junit.Test;
+import strategy.Action;
 import strategy.world.Path;
 import strategy.world.WorldUtils;
 import strategy.world.Edge;
@@ -28,6 +29,8 @@ public class WorldTest {
 		Vec2Double unitSpeed = new Vec2Double(0 ,0);
 		World world = new World(unit, unitSpeed, tiles, properties, 50, true);
 		//List<LootBox> boxes = Utils.readLootBoxes(fileName);
+		World.TilePoint point = world.getStartPoint();
+		Assert.assertTrue(point.adj.stream().anyMatch(e -> e.action == Action.JUMP_UP));
 		char[][] level = TestUtils.fromTiles(tiles);
 		Vec2Double to = TestUtils.findPosition(fileName, '*');
 		level[(int)to.getX()][(int)to.getY()] = '*';

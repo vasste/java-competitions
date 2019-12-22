@@ -62,9 +62,9 @@ public class WorldUtils {
 		return new Vec2Int(from.x, yU(from, -1));
 	}
 
-	public static Tile unitTile(Vec2Double unit, Tile[][] tiles) {
-		return tiles[(int) xU(unit, 0)][(int) yU(unit, 0)];
-	}
+//	public static Tile unitTile(Vec2Double unit, Tile[][] tiles) {
+//		return tiles[(int) xU(unit, 0)][(int) yU(unit, 0)];
+//	}
 
 	public static Tile unitTile(Vec2Int unit, Tile[][] tiles) {
 		return tiles[xU(unit, 0)][yU(unit, 0)];
@@ -82,9 +82,9 @@ public class WorldUtils {
 		return position.getX();
 	}
 
-	public static double xU(Vec2Double obj, double stride) {
-		return Math.max(0, obj.getX() + stride);
-	}
+//	public static double xU(Vec2Double obj, double stride) {
+//		return Math.max(0, obj.getX() + stride);
+//	}
 
 	public static int xU(Vec2Int obj, int stride) {
 		return Math.max(0, obj.x + stride);
@@ -94,17 +94,17 @@ public class WorldUtils {
 		return Math.max(0, obj.y + stride);
 	}
 
-	public static double yU(Vec2Double obj, int stride) {
-		return Math.max(0, obj.getY() + stride);
-	}
-
-	public static double xUr(Unit obj) {
-		return Math.max(0, obj.getPosition().getX() + 1);
-	}
-
-	public static double yU(Vec2Double obj) {
-		return obj.getY();
-	}
+//	public static double yU(Vec2Double obj, int stride) {
+//		return Math.max(0, obj.getY() + stride);
+//	}
+//
+//	public static double xUr(Unit obj) {
+//		return Math.max(0, obj.getPosition().getX() + 1);
+//	}
+//
+//	public static double yU(Vec2Double obj) {
+//		return obj.getY();
+//	}
 
 	public static double xL(LootBox obj) {
 		return obj.getPosition().getX();

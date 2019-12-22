@@ -10,9 +10,9 @@ public class Edge {
 	public double minSpeed = 0;
 	public double maxSpeed = 10;
 
-	public Edge(World.TilePoint from, World.TilePoint to) {
-		this.from = new Vec2Int(from);
-		this.to = new Vec2Int(to);
+	public Edge(Vec2Int from, Vec2Int to) {
+		this.from = from;
+		this.to = to;
 	}
 
 	public int horDelta() {
