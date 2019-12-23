@@ -1,11 +1,12 @@
 package strategy.world;
 
-import model.*;
 import model.Properties;
+import model.Tile;
+import model.Unit;
+import model.Vec2Double;
 import strategy.Action;
 import strategy.Vec2Int;
 
-import javax.rmi.CORBA.Util;
 import java.util.*;
 
 public class World {
@@ -20,17 +21,18 @@ public class World {
 	public boolean debugEnabled;
 	public int V;
 	public int maxDistance;
+	private Vec2Int partner;
 
 	double maxSpeedStride = 1;
 	double minSpeedStride = .5;
 	double averageTileLength;
 
 	public World(Vec2Double unit, Vec2Double unitSpeed, Tile[][] tiles, Properties properties, boolean debug) {
-		this(unit, unitSpeed, tiles, properties, Integer.MAX_VALUE, debug);
+		this(unit, unitSpeed, tiles, properties, Integer.MAX_VALUE, null, debug);
 	}
 
 	public World(Vec2Double unit, Vec2Double unitSpeed, Tile[][] tiles, Properties properties,
-				 int maxDistance, boolean debug) {
+				 int maxDistance, Vec2Double partner, boolean debug) {
 		this.tiles = tiles;
 		this.jumpPadHeight = (int)(properties.getJumpPadJumpSpeed()*properties.getJumpPadJumpTime());
 		this.jumpHeight = (int)(properties.getUnitJumpSpeed()*properties.getUnitJumpTime());
@@ -38,6 +40,7 @@ public class World {
 		this.maxHorizontalSpeed = 5;
 		this.debugEnabled = debug;
 		this.maxDistance = maxDistance;
+		this.partner = partner == null ? new Vec2Int(0, 0) : new Vec2Int(partner);
 		buildPaths(unit, unitSpeed);
 	}
 
@@ -70,16 +73,16 @@ public class World {
 				visited[from.x][from.y] = true;
 				Tile tileBelowUnit = WorldUtils.unitTile(WorldUtils.down(from), tiles);
 				unitTile = WorldUtils.unitTile(from, tiles);
-//				switch (unitTile) {
-//					case LADDER:
-//						for (int i = 0; i <= jumpHeight; i++) {
-//							for (int j = 0; j <= jumpHeight; j++) {
-//								if (!addEdge(queue, from, WorldUtils.jump(from, i), strategy.Action.JUMP_UP,
-//										minSpeedStride * j, maxSpeedStride * i, startSpeed)) break;
-//							}
-//						}
-//						break;
-//				}
+				switch (unitTile) {
+					case LADDER:
+						for (int i = 0; i <= jumpHeight; i++) {
+							for (int j = 0; j <= jumpHeight; j++) {
+								if (!addEdge(queue, from, WorldUtils.jump(from, i), strategy.Action.JUMP_UP,
+										minSpeedStride * j, maxSpeedStride * i, startSpeed)) break;
+							}
+						}
+						break;
+				}
 				switch (tileBelowUnit) {
 					case EMPTY:
 						int stride = 1;
@@ -101,13 +104,13 @@ public class World {
 							}
 						}
 						break;
-//					case LADDER:
-//						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
-//						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
-//						for (int i = 0; i <= jumpHeight; i++)
-//							if (!addEdge(queue, from, WorldUtils.jump(from, -i), strategy.Action.JUMP_DOWN,
-//									0, maxSpeedStride * i, startSpeed)) break;
-//						break;
+					case LADDER:
+						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
+						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
+						for (int i = 0; i <= jumpHeight; i++)
+							if (!addEdge(queue, from, WorldUtils.jump(from, -i), strategy.Action.JUMP_DOWN,
+									0, maxSpeedStride * i, startSpeed)) break;
+						break;
 					case PLATFORM:
 					case WALL:
 						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
@@ -122,6 +125,10 @@ public class World {
 			}
 		}
 		return startPoint;
+	}
+
+	public double getAverageTileLength() {
+		return averageTileLength;
 	}
 
 	private void parabolaMove(Queue<TilePoint> queue, Vec2Int from, Vec2Double startSpeed, double height) {
@@ -148,6 +155,9 @@ public class World {
 	private boolean addEdge(Queue<TilePoint> queue, Vec2Int from, Vec2Int to, Action action,
 							double minSpeed, double maxSpeed, Vec2Double startSpeed) {
 		if (tiles.length <= to.x || tiles[0].length <= to.y || to.x < 0 || to.y < 0)
+			return false;
+
+		if (to.x == partner.x && to.y == partner.y)
 			return false;
 
 		if (VIC.compare(to, from) == 0 || minSpeed > maxSpeed)
@@ -181,7 +191,7 @@ public class World {
 		}
 
 		edgeToAdd.action = action;
-		edgeToAdd.cost = (10 - WorldUtils.distanceManhattan(from, to))/maxSpeed;
+		edgeToAdd.cost = 1/maxSpeed;
 		edgeToAdd.minSpeed = minSpeed;
 		edgeToAdd.maxSpeed = maxSpeed;
 

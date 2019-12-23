@@ -11,14 +11,6 @@ public class DebugUtils {
 		return new ColorFloat(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
 	}
 
-	static Unit findOpponent(Unit unit, Game game) {
-		for (Unit gameUnit : game.getUnits()) {
-			if (gameUnit.getPlayerId() != unit.getPlayerId())
-				return gameUnit;
-		}
-		return unit;
-	}
-
 	public static void drawGrid(Debug debug, Game game, boolean debugEnabled) {
 		if (!debugEnabled)
 			return;
