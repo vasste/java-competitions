@@ -4,6 +4,8 @@ import model.Tile;
 import model.Vec2Double;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -50,7 +52,8 @@ public class TestUtils {
 
 	public static List<LootBox> readLootBoxes(String fileName) {
 		try {
-			List<String> lines = Files.readAllLines(Paths.get(fileName)); // y
+			URL url = WorldTest.class.getResource(fileName);
+			List<String> lines = Files.readAllLines(Paths.get(url.toURI())); // y
 			List<LootBox> lootBoxes = new ArrayList<>();
 			Vec2Double size = new Vec2Double(1, 1);
 			for (int j = lines.size() - 1; j >= 0; j--) {
@@ -64,14 +67,15 @@ public class TestUtils {
 				}
 			}
 			return lootBoxes;
-		} catch (IOException e) {
+		} catch (IOException | URISyntaxException e) {
 			return Collections.emptyList();
 		}
 	}
 
 	public static Vec2Double findPosition(String fileName, char marker) {
 		try {
-			List<String> lines = Files.readAllLines(Paths.get(fileName)); // y
+			URL url = WorldTest.class.getResource(fileName);
+			List<String> lines = Files.readAllLines(Paths.get(url.toURI())); // y
 			for (int j = lines.size() - 1; j >= 0; j--) {
 				String line = lines.get(j);
 				for (int i = 0; i < line.length(); i++) {
@@ -79,14 +83,15 @@ public class TestUtils {
 						return new Vec2Double(i, lines.size() - j - 1);
 				}
 			}
-		} catch (IOException e) {
+		} catch (IOException | URISyntaxException e) {
 		}
 		return null;
 	}
 
 	public static Tile[][] readTiles(String fileName) {
 		try {
-			List<String> lines = Files.readAllLines(Paths.get(fileName)); // y
+			URL url = WorldTest.class.getResource(fileName);
+			List<String> lines = Files.readAllLines(Paths.get(url.toURI())); // y
 			int xl = lines.get(0).length();
 			int yl = lines.size();
 			Tile[][] tiles = new Tile[xl][yl];
@@ -114,7 +119,7 @@ public class TestUtils {
 				}
 			}
 			return tiles;
-		} catch (IOException e) {
+		} catch (IOException | URISyntaxException e) {
 			return null;
 		}
 	}

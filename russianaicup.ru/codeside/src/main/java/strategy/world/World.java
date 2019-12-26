@@ -22,6 +22,7 @@ public class World {
 	public int V;
 	public int maxDistance;
 	private Vec2Int partner;
+	private Vec2Double unitSize;
 
 	double maxSpeedStride = 1;
 	double minSpeedStride = .5;
@@ -37,11 +38,12 @@ public class World {
 		this.jumpPadHeight = (int)(properties.getJumpPadJumpSpeed()*properties.getJumpPadJumpTime());
 		this.jumpHeight = (int)(properties.getUnitJumpSpeed()*properties.getUnitJumpTime());
 		this.averageTileLength = properties.getUnitSize().getY()/1.5; // 2 tiles
+		this.unitSize = properties.getUnitSize();
 		this.maxHorizontalSpeed = 5;
 		this.debugEnabled = debug;
 		this.maxDistance = maxDistance;
 		this.partner = partner == null ? new Vec2Int(0, 0) : new Vec2Int(partner);
-		buildPaths(unit, unitSpeed);
+		buildPaths(WorldUtils.subX(unit, unitSize.getX()), unitSpeed);
 	}
 
 	// bfs
@@ -234,8 +236,9 @@ public class World {
 			if (from == null)
 				return;
 			this.distance = from.distance + 1;
-			Tile belowPoint = WorldUtils.unitTile(WorldUtils.down(point), tiles);
-			this.distanceFromGround = belowPoint != Tile.EMPTY ? 0 : from.distanceFromGround + 1;
+			Vec2Int p = new Vec2Int(point);
+			for(;p.y > 0 && WorldUtils.unitTile(p, tiles) == Tile.EMPTY; p.y--);
+			this.distanceFromGround = point.y - p.y - 1;
 		}
 
 		@Override

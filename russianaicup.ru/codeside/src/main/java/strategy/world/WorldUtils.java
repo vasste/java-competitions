@@ -58,6 +58,18 @@ public class WorldUtils {
 		return new Vec2Int(from.x, yU(from, height));
 	}
 
+	public static Vec2Double sub(Vec2Double a, Vec2Double b) {
+		return new Vec2Double(a.getX() - b.getX(), a.getY() - b.getY());
+	}
+
+	public static Vec2Double subX(Vec2Double a, double x) {
+		return new Vec2Double(a.getX() - x, a.getY());
+	}
+
+	public static Vec2Double subY(Vec2Double a, double y) {
+		return new Vec2Double(a.getX(), a.getY() - y);
+	}
+
 	public static Vec2Int down(Vec2Int from) {
 		return new Vec2Int(from.x, yU(from, -1));
 	}
