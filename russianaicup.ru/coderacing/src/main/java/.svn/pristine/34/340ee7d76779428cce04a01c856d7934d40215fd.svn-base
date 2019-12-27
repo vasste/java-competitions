@@ -1,0 +1,1039 @@
+import model.*;
+
+import java.util.*;
+
+import static java.lang.Math.*;
+import static model.TileType.*;
+
+public final class SimpleStrategy implements Strategy {
+    public static final double EPS = .5;
+    public int roadTileIndex = 0;
+    public N[][][] points;
+    public N[] roadToWayPoint;
+    public N[] lostRoadToWayPoint;
+    public int[][] edges;
+    N current;
+    N current_1;
+    N current_2;
+    double margin;
+    double tileSize;
+    int width, height;
+    int lost_track = -1;
+    int[][] waypoints;
+    int lx = -1, ly = -1;
+
+    @Override
+    public void move(Car self, World world, Game game, Move move) {
+        TileType[][] tileTypes = world.getTilesXY();
+        margin = game.getTrackTileMargin();
+        tileSize = game.getTrackTileSize();
+        width = world.getWidth();
+        height = world.getHeight();
+
+        int cx = (int) (self.getX() / game.getTrackTileSize());
+        int cy = (int) (self.getY() / game.getTrackTileSize());
+
+        if (lx == -1) lx = cx;
+        if (ly == -1) ly = cy;
+
+        if (null == roadToWayPoint) {
+            waypoints = world.getWaypoints();
+            edges = new int[width*height][width*height];
+            for (int j = 0; j < edges.length; j++) {
+                Arrays.fill(edges[j], 1);
+            }
+
+            List<N> path = new ArrayList<>();
+            OUT: while (true) {
+                int x = cx;
+                path.clear();
+                int y = cy, k = 0;
+                for (int[] xy : waypoints) {
+                    k = buildSegment(tileTypes, world, xy, path, x, y, k, false);
+                    x = xy[0];
+                    y = xy[1];
+                    N ni = null, ny = null;
+                    for (N n : path) {
+                        if (ni == null) {
+                            ni = n;
+                            continue;
+                        }
+                        if (ny == null) {
+                            ny = n;
+                            continue;
+                        }
+                        if (ny.equals(n)) {
+                            edges[ni.index()][ny.index()] = 1000;
+                            continue OUT;
+                        }
+                        ny = ni;
+                        ni = n;
+                    }
+                }
+                buildSegment(tileTypes, world, world.getWaypoints()[0], path, x, y, k, false);
+                break;
+            }
+            roadToWayPoint = path.toArray(new N[path.size()]);
+            points = new N[world.getWidth()][world.getHeight()][];
+            for (N n : path) {
+                for (int j = 0; j < 5; j++) {
+                    if (points[n.x][n.y] == null) points[n.x][n.y] = new N[5];
+                    if (points[n.x][n.y][j] == null) {
+                        points[n.x][n.y][j] = n;
+                        break;
+                    }
+                }
+            }
+        } else {
+            if (lost_track >= 0) {
+                if (roadToWayPoint.length - 6 > roadTileIndex) {
+                    for (int i = 0; points[cx][cy] != null && i < points[cx][cy].length && points[cx][cy][i] != null; i++) {
+                        if (roadTileIndex + 1 == points[cx][cy][i].li ||
+                                roadTileIndex == roadToWayPoint.length - 1 && points[cx][cy][i].li == 0) {
+                            roadTileIndex = points[cx][cy][i].li;
+                            break;
+                        }
+                    }
+                } else {
+                    roadTileIndex = lost_track;
+                    lost_track = -1;
+                    for (N n : roadToWayPoint) {
+                        int nulls = 0;
+                        for (int i = 0; i < 5; i++) {
+                            N pn = points[n.x][n.y][i];
+                            if (pn != null && n.lost) {
+                                points[n.x][n.y][i] = null;
+                            }
+                            if (pn == null) nulls++;
+                        }
+                        if (nulls == 5) points[n.x][n.y] = null;
+                    }
+                    roadToWayPoint = lostRoadToWayPoint;
+                }
+            } else {
+                for (int i = 0; points[cx][cy] != null && i < points[cx][cy].length && points[cx][cy][i] != null; i++) {
+                    if (roadTileIndex + 1 == points[cx][cy][i].i ||
+                            roadTileIndex == roadToWayPoint.length - 1 && points[cx][cy][i].i == 0) {
+                        roadTileIndex = points[cx][cy][i].i;
+                        break;
+                    }
+                }
+                // define turn back
+                if (points[cx][cy] == null) {
+                    lostRoadToWayPoint = roadToWayPoint;
+                    List<N> path = new ArrayList<>();
+                    int i = roadTileIndex;
+                    for (; true; i++) {
+                        if (i == roadToWayPoint.length) i = 0;
+                        if (roadToWayPoint[i].isWayPoint()) {
+                            buildSegment(tileTypes, world, roadToWayPoint[i].xy(), path, cx, cy, 0, true);
+                            break;
+                        }
+                    }
+                    lost_track = i;
+                    roadToWayPoint = path.toArray(new N[path.size() + 5]);
+                    for (N n : roadToWayPoint) {
+                        if (n != null) n.lost = true;
+                    }
+                    for (int j = path.size(), k = 0; j < roadToWayPoint.length; j++) {
+                        int ix = roadTileIndex + roadToWayPoint.length - j;
+                        if (ix >= lostRoadToWayPoint.length && k >= lostRoadToWayPoint.length) {
+                            roadToWayPoint[j] = roadToWayPoint[Math.max(0, path.size() - 1)];
+                        } else {
+                            roadToWayPoint[j] =
+                                    lostRoadToWayPoint[ix >= lostRoadToWayPoint.length ? k++ : ix];
+                        }
+                    }
+                    for (N n : path) {
+                        for (int j = 0; j < 5; j++) {
+                            if (points[n.x][n.y] == null) points[n.x][n.y] = new N[5];
+                            if (points[n.x][n.y][j] == null) {
+                                points[n.x][n.y][j] = n;
+                                break;
+                            } else {
+                                points[n.x][n.y][j].li = n.li;
+                            }
+                        }
+                    }
+                    roadTileIndex = 0;
+                }
+            }
+        }
+
+        if (cx != lx) lx = cx;
+        if (cy != ly) ly = cy;
+
+        current = roadToWayPoint[roadTileIndex];
+        current_1 = nexti(1) < roadToWayPoint.length ? roadToWayPoint[nexti(1)] : current;
+        current_2 = nexti(2) < roadToWayPoint.length ? roadToWayPoint[nexti(2)] : current;
+        N current_3 = nexti(3) < roadToWayPoint.length ? roadToWayPoint[nexti(3)] : current;
+        N current_4 = nexti(4) < roadToWayPoint.length ? roadToWayPoint[nexti(4)] : current;
+        TileType nextTile = current_1.tt;
+        MoveDirection md_current = defineMoveDirection(current, current_1);
+        MoveDirection md_current_1 = defineMoveDirection(current_1, current_2);
+        MoveDirection md_current_2 = defineMoveDirection(current_2, current_3);
+        MoveDirection md_current_3 = defineMoveDirection(current_3, current_4);
+
+        move.setEnginePower(1);
+        if (turnAround(cx, cy, current.tt, md_current, self, move, world)) {
+            return;
+        }
+
+        fire(world, md_current, move, self, true, true);
+
+        switch (nextTile) {
+            case HORIZONTAL:
+            case VERTICAL:
+                move.setEnginePower(1);
+                move.setWheelTurn(0);
+                if (straightCar(current_1, self, game, move, md_current)) return;
+                break;
+            case CROSSROADS:
+                if (md_current != md_current_1) {
+                    switch (md_current_1) {
+                        case Left:
+                            nextTile = LEFT_BOTTOM_CORNER;
+                            break;
+                        case Up:
+                            nextTile = RIGHT_TOP_CORNER;
+                            break;
+                        case Right:
+                            nextTile = LEFT_TOP_CORNER;
+                            break;
+                        case Down:
+                            nextTile = RIGHT_BOTTOM_CORNER;
+                            break;
+                    }
+                } else {
+                    if (straightCar(current_1, self, game, move, md_current)) return;
+                }
+                break;
+            case LEFT_HEADED_T:
+                move.setEnginePower(1);
+                if (md_current != md_current_1) {
+                    switch (md_current_1) {
+                        case Left:
+                            if (md_current == MoveDirection.Down) nextTile = RIGHT_BOTTOM_CORNER;
+                            else nextTile = RIGHT_TOP_CORNER;
+                            current_1 = current_2;
+                            move.setBrake(useBreak(current_1, self));
+                            break;
+                    }
+                } else {
+                    if (straightCar(current_1, self, game, move, md_current_1)) return;
+                }
+                break;
+            case RIGHT_HEADED_T:
+                move.setEnginePower(1);
+                if (md_current != md_current_1) {
+                    switch (md_current_1) {
+                        case Right:
+                            if (md_current == MoveDirection.Down) nextTile = LEFT_BOTTOM_CORNER;
+                            else nextTile = LEFT_TOP_CORNER;
+                            current_1 = current_2;
+                            move.setBrake(useBreak(current_1, self));
+                            break;
+                    }
+                } else {
+                    if (straightCar(current_1, self, game, move, md_current_1)) return;
+                }
+                break;
+            case TOP_HEADED_T:
+                move.setEnginePower(1);
+                if (md_current != md_current_1) {
+                    switch (md_current) {
+                        case Up:
+                            nextTile = md_current_1 == MoveDirection.Left ? LEFT_BOTTOM_CORNER : RIGHT_BOTTOM_CORNER;
+                            break;
+                        case Left:
+                            nextTile = RIGHT_BOTTOM_CORNER;
+                            break;
+                        case Right:
+                            nextTile = LEFT_BOTTOM_CORNER;
+                            break;
+                    }
+                    move.setBrake(useBreak(current_1, self));
+                } else {
+                    if (straightCar(current_1, self, game, move, md_current_1)) return;
+                }
+                break;
+            case BOTTOM_HEADED_T:
+                move.setEnginePower(1);
+                if (md_current != md_current_1) {
+                    switch (md_current) {
+                        case Down:
+                            nextTile = md_current_1 == MoveDirection.Left ? RIGHT_TOP_CORNER : LEFT_TOP_CORNER;
+                            break;
+                        case Left:
+                            nextTile = RIGHT_TOP_CORNER;
+                            break;
+                        case Right:
+                            nextTile = LEFT_TOP_CORNER;
+                            break;
+                    }
+                    move.setBrake(useBreak(current_1, self));
+                    current_1 = current_2;
+                } else {
+                    if (straightCar(current_1, self, game, move, md_current_1)) return;
+                }
+                break;
+        }
+
+        boolean turn = false;
+        double waypoint_coef = .5;
+        double cornerTileOffset = 0.30D * game.getTrackTileSize();
+        double nextWaypointX = (current_1.x + waypoint_coef) * tileSize;
+        double nextWaypointY = (current_1.y + waypoint_coef) * tileSize;
+
+        move.setEnginePower(1);
+
+        switch (nextTile) {
+            case LEFT_TOP_CORNER:
+                nextWaypointX += cornerTileOffset;
+                nextWaypointY += cornerTileOffset;
+                turn = true;
+                break;
+            case RIGHT_TOP_CORNER:
+                nextWaypointX -= cornerTileOffset;
+                nextWaypointY += cornerTileOffset;
+                turn = true;
+                break;
+            case LEFT_BOTTOM_CORNER:
+                nextWaypointX += cornerTileOffset;
+                nextWaypointY -= cornerTileOffset;
+                turn = true;
+                break;
+            case RIGHT_BOTTOM_CORNER:
+                nextWaypointX -= cornerTileOffset;
+                nextWaypointY -= cornerTileOffset;
+                turn = true;
+                break;
+        }
+
+        if (self.getRemainingNitroTicks() > 0 && md_current_2 != md_current_3) {
+            move.setBrake(true);
+        }
+
+        if (turn) {
+            double angleToWayPoint = self.getAngleTo(nextWaypointX, nextWaypointY);
+            double speedModule = hypot(self.getSpeedX(), self.getSpeedY());
+
+            move.setWheelTurn(angleToWayPoint * 28.0D / Math.PI);
+            move.setEnginePower(0.95D);
+
+            if (speedModule * speedModule * Math.abs(angleToWayPoint) > 4.5D * 4.5D * Math.PI) {
+                move.setBrake(true);
+            }
+            return;
+        }
+
+        if (straightCar(current_1, self, game, move, md_current)) return;
+        move.setUseNitro(useNitro(self));
+
+        if (!move.isUseNitro() && current_1.tt == current_2.tt) {
+            Bonus[] bonuses = world.getBonuses();
+            for (Bonus bonus : bonuses) {
+                if ((int) (bonus.getX() / tileSize) == current_2.x && (int) (bonus.getY() / tileSize) == current_2.y) {
+                    move.setWheelTurn(self.getAngleTo(bonus) * 30.0D / Math.PI);
+                }
+            }
+        }
+    }
+
+    int nexti(int aj) {
+        return roadTileIndex + aj < roadToWayPoint.length ? roadTileIndex + aj :
+                roadToWayPoint.length - roadTileIndex + aj - 1;
+    }
+
+    int buildSegment(TileType[][] tileTypes, World world, int[] xy, List<N> path, int x, int y, int k, boolean lost) {
+        Road road = new Road(tileTypes, x, y);
+        Stack<N> part = road.pathTo(xy[0], xy[1], world);
+        N[] roadToWayPoint = new N[part.size()];
+        int i = roadToWayPoint.length;
+        for (N n : part) {
+            roadToWayPoint[--i] = n;
+            if (lost) n.li = i + k;
+            else n.i = i + k;
+        }
+        Collections.addAll(path, roadToWayPoint);
+        return k + part.size();
+    }
+
+    double sx = Double.NaN, sy = Double.NaN;
+
+    public boolean straightCar(N next, Car self, Game game, Move move, MoveDirection md) {
+        sx = (next.x + 0.50D) * game.getTrackTileSize();
+        sy = (next.y + 0.50D) * game.getTrackTileSize();
+        boolean straight = md.vert && notVertical(self) || !md.vert && notHorizontal(self);
+        OUT: for (int i = Math.min(roadTileIndex + 1, roadToWayPoint.length), t = 0; t < 4; i++, t++) {
+            if (i == roadToWayPoint.length) i = 0;
+            MoveDirection fmd = defineMoveDirection(roadToWayPoint[Math.max(0, i-1)], roadToWayPoint[i]);
+            if (fmd != md) {
+                switch (fmd) {
+                    case Right:
+                        sx = (next.x + .2) * game.getTrackTileSize();
+                        sy = (next.y + 0.50D) * game.getTrackTileSize();
+                        straight |= true;
+                        break OUT;
+                    case Left:
+                        sx = (next.x + .85) * game.getTrackTileSize();
+                        sy = (next.y + 0.50D) * game.getTrackTileSize();
+                        straight |= true;
+                        break OUT;
+                    case Up:
+                        sx = (next.x + 0.50D) * game.getTrackTileSize();
+                        sy = (next.y + .8) * game.getTrackTileSize();
+                        straight |= true;
+                        break OUT;
+                    case Down:
+                        sx = (next.x + 0.50D) * game.getTrackTileSize();
+                        sy = (next.y + .2) * game.getTrackTileSize();
+                        straight |= true;
+                        break OUT;
+                }
+            }
+        }
+        if (straight) {
+            double angleToWayPoint = self.getAngleTo(sx, sy);
+            double speedModule = hypot(self.getSpeedX(), self.getSpeedY());
+            move.setWheelTurn(angleToWayPoint * 28.0D / Math.PI);
+            move.setEnginePower(.95);
+
+            if (speedModule * speedModule * Math.abs(angleToWayPoint) > 4.5D * 4.5D * Math.PI) {
+                move.setBrake(true);
+            }
+            return true;
+        }
+        sx = Double.NaN;
+        sy = Double.NaN;
+        return false;
+    }
+
+    boolean useBreak(N n, Car self) {
+        double speedModule = hypot(self.getSpeedX(), self.getSpeedY());
+        double x = (n.x + 0.50D) * tileSize;
+        double y = (n.y + 0.50D) * tileSize;
+        double angleToWayPoint = self.getAngleTo(x, y);
+        return speedModule * speedModule * Math.abs(angleToWayPoint) > 3.5D * 3.5D * Math.PI;
+    }
+
+    public int compare(double a, double b, double eps) {
+        double r = a - b;
+        if (Math.abs(r) < eps) return 0;
+        return (int) Math.signum(r);
+    }
+
+    public int compare(double a, double b) {
+        double r = a - b;
+        if (Math.abs(r) < EPS) return 0;
+        return (int) Math.signum(r);
+    }
+
+    Side[] intersect = new Side[0];
+
+    enum Side {Right, Left, Top, Bottom, None}
+
+    enum MoveDirection {
+        Right(false), Left(false), Down(true), Up(true), None(false);
+
+        boolean vert;
+
+        MoveDirection(boolean vert) {
+            this.vert = vert;
+        }
+    }
+
+    MoveDirection defineMoveDirection(N from, N next) {
+        MoveDirection md = MoveDirection.None;
+        if (from.x > next.x) md = MoveDirection.Left;
+        if (from.x < next.x) md = MoveDirection.Right;
+        if (from.y < next.y) md = MoveDirection.Down;
+        if (from.y > next.y) md = MoveDirection.Up;
+
+        return md;
+    }
+
+    boolean notHorizontal(Car self) {
+        return !(compare(Math.abs(self.getAngle()), 0, 5e-2) == 0 ||
+                compare(Math.abs(self.getAngle()), PI, 5e-2) == 0);
+    }
+
+    boolean notVertical(Car self) {
+        return compare(Math.abs(self.getAngle()), Math.PI / 2, 5e-2) != 0;
+    }
+
+    public double turn;
+
+    public boolean turnAround(int x, int y, TileType tt, MoveDirection md, Car self, Move move, World world) {
+        double speedModule = hypot(self.getSpeedX(), self.getSpeedY());
+
+        FB fb = carPoints(self, self.getAngle(), false);
+        List<Point> front = fb.front;
+
+        if (speedModule < 0.5 && intersect.length == 0) {
+            intersect = intersect(x, y, tt, front);
+
+            FB selfFb = carPoints(self, -PI/2, true);
+            double radius = Math.sqrt(self.getHeight() * self.getHeight() +
+                    self.getWidth() * self.getWidth());
+            for (Car player : world.getCars()) {
+                if (!player.isTeammate() && roadTileIndex != 0) {
+                    Side side = Side.None;
+                    FB playerFb = carPoints(player, -PI/2, true);
+                    double psx = player.getX() - self.getX();
+                    double psy = player.getY() - self.getY();
+                    double psr = Math.sqrt(psx*psx + psy*psy);
+                    if (radius > psr) {
+                        if (compare(playerFb.bA().y, selfFb.fA().y, 100) == 0) side = Side.Bottom;
+                        if (compare(playerFb.fA().y, selfFb.bA().y, 100) == 0) side = Side.Top;
+                        if (compare(playerFb.fB().x, selfFb.fA().x, 100) == 0) side = Side.Left;
+                        if (compare(playerFb.fA().y, selfFb.fB().y, 100) == 0) side = Side.Right;
+                        switch (side) {
+                            case Right:
+                            case Left:
+                                intersect = new Side[]{Side.None, side};
+                                break;
+                            case Bottom:
+                            case Top:
+                                intersect = new Side[]{side, Side.None};
+                                break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (speedModule < 5  && intersect.length > 0 && (speedModule < 4 || up(md, self) || down(md, self)
+                || left(md, self) || right(md, self))) {
+            move.setEnginePower(-.8);
+            turn = 0;
+            switch (md) {
+                case Right:
+                    if (intersect[0] == Side.Bottom) turn = -1;
+                    if (intersect[0] == Side.Top || intersect[1] == Side.Left) turn = 1;
+                    if (intersect[0] == Side.Top && intersect[1] == Side.Right) turn = 1;
+                    if (intersect[0] == Side.Top && intersect[1] == Side.Left) turn = 1;
+                    if (intersect[0] == Side.Bottom && intersect[1] == Side.Right) turn = -1;
+                    break;
+                case Left:
+                    if (intersect[0] == Side.Bottom) turn = 1;
+                    if (intersect[0] == Side.Top || intersect[1] == Side.Right) turn = -1;
+                    if (intersect[0] == Side.Bottom && intersect[1] == Side.Left) turn = 1;
+                    if (intersect[0] == Side.Top && intersect[1] == Side.Left) turn = -1;
+                    if (intersect[0] == Side.Bottom && intersect[1] == Side.Right) turn = 1;
+                    break;
+                case Down:
+                    if (intersect[0] == Side.Bottom || intersect[1] == Side.Left) turn = 1;
+                    if (intersect[1] == Side.Right) turn = -1;
+                    if (intersect[0] == Side.Top && intersect[1] == Side.Left) turn = 1;
+                    break;
+                case Up:
+                    if (intersect[1] == Side.Left) turn = -1;
+                    if (intersect[1] == Side.Right || intersect[0] == Side.Top) turn = 1;
+                    if (intersect[1] == Side.Left && intersect[0] == Side.Bottom) turn = -1;
+                    break;
+            }
+
+            move.setWheelTurn(turn);
+            if (intersect(x, y, tt, fb.back).length > 0) {
+                intersect = new Side[0];
+                move.setBrake(true);
+                return false;
+            }
+            return true;
+        }
+        if (intersect.length > 0) {
+            move.setBrake(true);
+            move.setWheelTurn(-turn);
+            intersect = new Side[0];
+            return true;
+        }
+        return false;
+    }
+
+    FB carPoints(Car self, double angle, boolean frontBack) {
+        double h = self.getHeight();
+        double w = self.getWidth();
+        double radius = Math.sqrt(h * h + w * w) / 2;
+        double ta = Math.asin(h / (2 * radius));
+
+        double fxa = self.getX() + cos(-ta + angle) * radius;
+        double fya = self.getY() + sin(-ta + angle) * radius;
+
+        double fxb = self.getX() + cos(ta + angle) * radius;
+        double fyb = self.getY() + sin(ta + angle) * radius;
+
+        List<Point> front;
+        if (frontBack) {
+            front = Arrays.asList(new Point(fxa, fya), new Point(fxb, fyb));
+        } else front = points(fxa, fya, fxb, fyb);
+
+        double bxa = self.getX() + cos(PI + ta + angle) * radius;
+        double bya = self.getY() + sin(PI + ta + angle) * radius;
+
+        double bxb = self.getX() + cos(PI - ta + angle) * radius;
+        double byb = self.getY() + sin(PI - ta + angle) * radius;
+
+        List<Point> back;
+        if (frontBack) {
+            back = Arrays.asList(new Point(bxa, bya), new Point(bxb, byb));
+        } else back = points(bxa, bya, bxb, byb);
+
+        return new FB(back, front);
+    }
+
+    Side[] intersect(int x, int y, TileType tt, List<Point> points) {
+        Side[] intersect = new Side[0];
+        A:
+        for (Rect rect : rectangles(tt, x, y)) {
+            for (Point point : points) {
+                intersect = rect.contains(point);
+                if (intersect.length > 0)
+                    break A;
+            }
+        }
+        return intersect;
+    }
+
+    List<Point> points(double fxa, double fya, double fxb, double fyb) {
+
+        List<Point> points = new ArrayList<>();
+        double dx  = Math.abs(fxa - fxb) / 8;
+        double dy = Math.abs(fya - fyb) / 8;
+
+        for (int i = 2; i <= 4; i++) {
+            points.add(new Point(Math.min(fxa, fxb) + dx*i, Math.min(fya, fyb) + dy*i));
+        }
+        points.add(new Point(fxa, fya));
+        points.add(new Point(fxb, fyb));
+        return points;
+    }
+
+    boolean useNitro(Car self) {
+        MoveDirection md = defineMoveDirection(current, current_1);
+        if (notVertical(self) && notHorizontal(self)) return false;
+        for (int i = roadTileIndex + 1; i - roadTileIndex < 6 && i < roadToWayPoint.length; i++) {
+            if (md != defineMoveDirection(roadToWayPoint[Math.max(0, i - 1)], roadToWayPoint[i])) {
+                return false;
+            }
+        }
+        return self.getNitroChargeCount() > 0;
+    }
+
+    boolean up(MoveDirection md, Car self) {
+        return md == MoveDirection.Up && (!(Math.abs(self.getAngle()) < PI / 2 + PI / 6 &&
+                Math.abs(self.getAngle()) > PI / 2 - PI / 6));
+    }
+
+    boolean down(MoveDirection md, Car self) {
+        return md == MoveDirection.Down && (!(Math.abs(self.getAngle()) < PI / 2 + PI / 6 &&
+                Math.abs(self.getAngle()) > PI / 2 - PI / 6));
+    }
+
+    boolean left(MoveDirection md, Car self) {
+        return md == MoveDirection.Left && (!(Math.abs(self.getAngle()) > PI - PI / 6 &&
+                Math.abs(self.getAngle()) < PI + PI / 6));
+    }
+
+    boolean right(MoveDirection md, Car self) {
+        return md == MoveDirection.Right && (!(self.getAngle() < PI / 6 &&
+                self.getAngle() > -PI / 6));
+    }
+
+    void fire(World world, MoveDirection md, Move move, Car self, boolean oil, boolean throwp) {
+        for (Car player : world.getCars()) {
+            if (!player.isTeammate()) {
+                double speedModule = hypot(player.getSpeedX(), player.getSpeedY());
+                if (Math.abs(player.getAngle() - self.getAngle()) < PI/4 &&
+                        (compare(Math.abs(player.getAngle()), 0, .4) == 0 ||
+                                compare(Math.abs(player.getAngle()), PI, .4) == 0)) {
+                    if (player.getX() - self.getX()  > tileSize / 2 &&
+                            Math.abs(player.getY() - self.getY()) < tileSize / 2) {
+                        if (self.getOilCanisterCount() > 0 && md == MoveDirection.Left && speedModule > 4) move.setSpillOil(oil);
+                    }
+                    if (player.getX() < self.getX() && self.getX() - player.getX() < 2 * tileSize
+                            && compare(player.getY(), self.getY(), player.getHeight()) == 0) {
+                        if (self.getProjectileCount() > 0 && md == MoveDirection.Left) move.setThrowProjectile(throwp);
+                    }
+                    if (self.getX() - player.getX() > tileSize / 2 &&
+                            Math.abs(player.getY() - self.getY()) < tileSize / 2) {
+                        if (self.getOilCanisterCount() > 0 && md == MoveDirection.Right && speedModule > 4) move.setSpillOil(oil);
+                    }
+                    if (player.getX() > self.getX() && player.getX() - self.getX() < 2 * tileSize
+                            && compare(player.getY(), self.getY(), player.getHeight()) == 0) {
+                        if (self.getProjectileCount() > 0 && md == MoveDirection.Right) move.setThrowProjectile(throwp);
+                    }
+                    break;
+                } else {
+                    if (player.getY() - self.getY() > tileSize / 2 &&
+                            Math.abs(player.getX() - self.getX()) < tileSize / 2) {
+                        if (self.getOilCanisterCount() > 0 && md == MoveDirection.Up && speedModule > 4) move.setSpillOil(oil);
+                    }
+                    if (self.getY() > player.getY() && self.getX() - player.getX() < 2 * tileSize &&
+                            compare(player.getX(), self.getX(), player.getHeight()) == 0) {
+                        if (self.getProjectileCount() > 0 && md == MoveDirection.Up) move.setThrowProjectile(throwp);
+                    }
+                    if (self.getY() - player.getY() > tileSize / 2 &&
+                            Math.abs(player.getX() - self.getX()) < tileSize) {
+                        if (self.getOilCanisterCount() > 0 && md == MoveDirection.Down && speedModule > 4) move.setSpillOil(oil);
+                    }
+                    if (player.getY() > self.getY() && player.getY() - self.getY() < 2 * tileSize &&
+                            compare(player.getX(), self.getX(), player.getHeight()) == 0) {
+                        if (self.getProjectileCount() > 0 && md == MoveDirection.Down) move.setThrowProjectile(throwp);
+                    }
+                }
+            }
+        }
+    }
+
+    Rect[] rectangles(TileType tt, int x, int y) {
+        double lx = x * tileSize;
+        double ly = y * tileSize;
+
+        double rx = lx + tileSize;
+        double ry = ly + tileSize;
+
+        switch (tt) {
+            case RIGHT_TOP_CORNER:
+                return new Rect[]{bottom(lx, ly, rx, margin),
+                        right(ly, rx, ry, margin),
+                        leftTopSquare(lx, ry, margin)};
+            case RIGHT_BOTTOM_CORNER:
+                return new Rect[]{right(ly, rx, ry, margin),
+                        top(lx, rx, ry, margin),
+                        leftBottomSquare(lx, ly, margin)};
+            case LEFT_TOP_CORNER:
+                return new Rect[]{left(lx, ly, ry, margin),
+                        bottom(lx, ly, rx, margin),
+                        rightTopSquare(rx, ry, margin)};
+            case LEFT_BOTTOM_CORNER:
+                return new Rect[]{left(lx, ly, ry, margin),
+                        top(lx, rx, ry, margin),
+                        rightBottomSquare(rx, ly, margin)};
+            case HORIZONTAL:
+                return new Rect[]{top(lx, rx, ry, margin),
+                        bottom(lx, ly, rx, margin)};
+            case VERTICAL:
+                return new Rect[]{right(ly, rx, ry, margin),
+                        left(lx, ly, ry, margin)};
+            case TOP_HEADED_T:
+                return new Rect[]{top(lx, rx, ry, margin),
+                        leftBottomSquare(lx, ly, margin),
+                        rightBottomSquare(rx, ly, margin)};
+            case BOTTOM_HEADED_T:
+                return new Rect[]{bottom(lx, ly, rx, margin),
+                        leftTopSquare(lx, ry, margin),
+                        rightTopSquare(rx, ry, margin)};
+            case CROSSROADS:
+                return new Rect[]{leftBottomSquare(lx, ly, margin),
+                        rightBottomSquare(rx, ly, margin),
+                        leftTopSquare(lx, ry, margin),
+                        rightTopSquare(rx, ry, margin)};
+            case LEFT_HEADED_T:
+                return new Rect[]{right(ly, rx, ry, margin),
+                        leftBottomSquare(lx, ly, margin),
+                        leftTopSquare(lx, ry, margin)};
+            case RIGHT_HEADED_T:
+                return new Rect[]{left(lx, ly, ry, margin),
+                        rightBottomSquare(rx, ly, margin),
+                        rightTopSquare(rx, ry, margin)};
+        }
+        return null;
+    }
+
+    Rect leftBottomSquare(double lx, double ly, double m) {
+        return new Rect(lx, ly, lx + m, ly + m, Side.Bottom, Side.Left);
+    }
+
+    Rect rightTopSquare(double rx, double ry, double m) {
+        return new Rect(rx - m, ry - m, rx, ry, Side.Top, Side.Right);
+    }
+
+    Rect rightBottomSquare(double rx, double ly, double m) {
+        return new Rect(rx - m, ly, rx, ly + m, Side.Bottom, Side.Right);
+    }
+
+    Rect leftTopSquare(double lx, double ry, double m) {
+        return new Rect(lx, ry - m, lx + m, ry, Side.Top, Side.Left);
+    }
+
+    Rect bottom(double lx, double ly, double rx, double m) {
+        return new Rect(lx, ly, rx, ly + m, Side.Bottom, null);
+    }
+
+    Rect right(double ly, double rx, double ry, double m) {
+        return new Rect(rx - m, ly, rx, ry, null, Side.Right);
+    }
+
+    Rect left(double lx, double ly, double ry, double m) {
+        return new Rect(lx, ly, lx + m, ry, null, Side.Left);
+    }
+
+    Rect top(double lx, double rx, double ry, double m) {
+        return new Rect(lx, ry - m, rx, ry, Side.Top, null);
+    }
+
+    class FB {
+        List<Point> front;
+        List<Point> back;
+
+        public FB(List<Point> back, List<Point> front) {
+            this.back = back;
+            this.front = front;
+        }
+
+        Point fA() {
+            return front.get(0);
+        }
+
+        Point fB() {
+            return front.get(front.size() - 1);
+        }
+
+        Point bA() {
+            return back.get(0);
+        }
+
+        Point bb() {
+            return back.get(back.size() - 1);
+        }
+    }
+
+    class Rect {
+        Side lr;
+        Side up;
+        double lx, ly, rx, ry;
+
+        public Rect(double lx, double ly, double rx, double ry, Side up, Side lr) {
+            this.lx = lx;
+            this.ly = ly;
+            this.rx = rx;
+            this.ry = ry;
+            this.lr = lr == null ? Side.None : lr;
+            this.up = up == null ? Side.None : up;
+        }
+
+        public Side[] contains(Point point) {
+            double x0 = lx;
+            double y0 = ly;
+            boolean contains = (compare(point.x, x0) >= 0 &&
+                    compare(point.y, y0) >= 0 && compare(point.x, rx) <= 0 &&
+                    compare(point.y, ry) <= 0);
+            if (contains) {
+                return new Side[]{up, lr};
+            }
+            return new Side[0];
+        }
+    }
+
+    class Point {
+        double x, y;
+
+        public Point(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    class Road {
+        private PriorityQueue<N> pq;
+        private N[] edgeTo;
+        private int[] distTo;
+        private TileType[][] tileTypes;
+
+        public Road(TileType[][] tileTypes, int sx, int sy) {
+            int titles = width * height;
+            distTo = new int[titles];
+            edgeTo = new N[titles];
+            this.tileTypes = tileTypes;
+            Arrays.fill(distTo, Integer.MAX_VALUE);
+            pq = new PriorityQueue<>();
+            N sn = new N(sx, sy, 0, tileTypes[sx][sy]);
+            distTo[sn.index()] = 0;
+            pq.add(sn);
+            while (!pq.isEmpty()) {
+                N from = pq.remove();
+                Set<N> adj = evaluateNeighbours(from, width, height);
+                for (N to : adj)
+                    relax(from, to);
+            }
+        }
+
+        // relax edge e and update pq if changed
+        private void relax(N v, N w) {
+            int wi = w.index();
+            int vi = v.index();
+            if (distTo[wi] > distTo[vi] + edges[wi][vi]) {
+                distTo[wi] = distTo[vi] + edges[wi][vi];
+                edgeTo[wi] = v;
+
+                if (pq.remove(w)) {
+                    w.c = distTo[wi];
+                    pq.add(w);
+                } else {
+                    w.c = distTo[wi];
+                    pq.add(w);
+                }
+            }
+        }
+
+        private Set<N> evaluateNeighbours(N n, int w, int h) {
+            Set<N> adj = new HashSet<N>(4);
+            switch (tileTypes[n.x][n.y]) {
+                case VERTICAL:
+                    top(n, h, adj);
+                    bottom(n, adj);
+                    break;
+                case HORIZONTAL:
+                    left(n, adj);
+                    right(n, w, adj);
+                    break;
+                case TOP_HEADED_T:
+                    left(n, adj);
+                    right(n, w, adj);
+                    bottom(n, adj);
+                    break;
+                case BOTTOM_HEADED_T:
+                    left(n, adj);
+                    right(n, w, adj);
+                    top(n, h, adj);
+                    break;
+                case RIGHT_TOP_CORNER:
+                    top(n, h, adj);
+                    left(n, adj);
+                    break;
+                case LEFT_TOP_CORNER:
+                    top(n, h, adj);
+                    right(n, w, adj);
+                    break;
+                case RIGHT_BOTTOM_CORNER:
+                    left(n, adj);
+                    bottom(n, adj);
+                    break;
+                case LEFT_BOTTOM_CORNER:
+                    right(n, w, adj);
+                    bottom(n, adj);
+                    break;
+                case CROSSROADS:
+                    left(n, adj);
+                    right(n, w, adj);
+                    top(n, h, adj);
+                    bottom(n, adj);
+                    break;
+                case LEFT_HEADED_T:
+                    left(n, adj);
+                    top(n, h, adj);
+                    bottom(n, adj);
+                    break;
+                case RIGHT_HEADED_T:
+                    right(n, w, adj);
+                    top(n, h, adj);
+                    bottom(n, adj);
+                    break;
+            }
+            return adj;
+        }
+
+        public Stack<N> pathTo(int x, int y, World world) {
+            int v = y * world.getWidth() + x;
+            Stack<N> path = new Stack<N>();
+            for (N e = edgeTo[v]; e != null; e = edgeTo[e.index()]) {
+                path.push(e);
+            }
+            return path;
+        }
+
+        private void top(N n, int h, Set<N> adj) {
+            int t = Math.min(h - 1, n.y + 1);
+            if (t != n.y && !isH(n.x, t) && !isE(n.x, t))
+                adj.add(new N(n.x, t, Integer.MAX_VALUE, tileTypes[n.x][t]));
+        }
+
+        private void bottom(N n, Set<N> adj) {
+            int b = Math.max(0, n.y - 1);
+            if (b != n.y && !isH(n.x, b) && !isE(n.x, b))
+                adj.add(new N(n.x, b, Integer.MAX_VALUE, tileTypes[n.x][b]));
+        }
+
+        private void left(N n, Set<N> adj) {
+            int l = Math.max(0, n.x - 1);
+            if (l != n.x && !isV(l, n.y) && !isE(l, n.y))
+                adj.add(new N(l, n.y, Integer.MAX_VALUE, tileTypes[l][n.y]));
+        }
+
+        private void right(N n, int w, Set<N> adj) {
+            int r = Math.min(w - 1, n.x + 1);
+            if (r != n.x && !isV(r, n.y) && !isE(r, n.y))
+                adj.add(new N(r, n.y, Integer.MAX_VALUE, tileTypes[r][n.y]));
+        }
+
+        private boolean isH(int x, int y) {
+            return tileTypes[x][y] == HORIZONTAL;
+        }
+
+        private boolean isV(int x, int y) {
+            return tileTypes[x][y] == VERTICAL;
+        }
+
+        private boolean isE(int x, int y) {
+            return tileTypes[x][y] == EMPTY;
+        }
+    }
+
+    class N implements Comparable<N> {
+        int x, y, c, i, li;
+        boolean lost;
+        TileType tt;
+
+        public N(int x, int y, int c, TileType tt) {
+            this.x = x;
+            this.y = y;
+            this.c = c;
+            this.tt = tt;
+        }
+
+        public N(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+
+        int index() {
+            return y * width + x;
+        }
+
+        int[] xy() {
+            return new int[]{x, y};
+        }
+
+        boolean isWayPoint() {
+            for (int[] wp : waypoints) {
+                if (wp[0] == x && wp[1] == y) return true;
+            }
+            return false;
+        }
+
+        @Override
+        public int compareTo(N o2) {
+            return Integer.compare(c, o2.c);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            N n = (N) o;
+            return Objects.equals(x, n.x) &&
+                    Objects.equals(y, n.y);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(x, y);
+        }
+
+        @Override
+        public String toString() {
+            return x + "|" + y + "|" + tt;
+        }
+    }
+}
