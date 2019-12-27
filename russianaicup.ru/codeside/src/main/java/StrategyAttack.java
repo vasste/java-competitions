@@ -31,15 +31,15 @@ public class StrategyAttack implements UnitStrategy {
 		// find weapon
 		// find opponent
 		// attack
-//		for (LootBox lootBox : game.getLootBoxes()) {
-//			if (me.getWeapon() == null && lootBox.getItem() instanceof Item.Weapon)
-//				destinationPath = path.find(lootBox.getPosition());
-//
-//			if (!destinationPath.isEmpty()) {
-//				destination = lootBox.getPosition();
-//				break;
-//			}
-//		}
+		for (LootBox lootBox : game.getLootBoxes()) {
+			if (me.getWeapon() == null && lootBox.getItem() instanceof Item.Weapon)
+				destinationPath = path.find(lootBox.getPosition());
+
+			if (!destinationPath.isEmpty()) {
+				destination = lootBox.getPosition();
+				break;
+			}
+		}
 
 		if (destinationPath.isEmpty()) {
 			Unit opponent = manager.findOpponent(me, game);
@@ -50,7 +50,7 @@ public class StrategyAttack implements UnitStrategy {
 
 		draw.paths(destinationPath, debug);
 		double direction = 0;
-		double velocity = 0;
+		double velocity = game.getProperties().getUnitMaxHorizontalSpeed();
 		boolean shoot = false;
 		Vec2Double aim = ZERO;
 		if (destination != null) {
@@ -61,6 +61,13 @@ public class StrategyAttack implements UnitStrategy {
 		if (!destinationPath.isEmpty()) {
 			Edge firstStride = destinationPath.iterator().next();
 			velocity = firstStride.action.jump() ? game.getProperties().getJumpPadJumpSpeed() : firstStride.maxSpeed;
+			double pathDirection = 0;
+			for (Edge edge : destinationPath) {
+				pathDirection = edge.horzDirection();
+				if (pathDirection != 0)
+					break;
+			}
+			direction = firstStride.horzDirection() == 0 ? direction : pathDirection;
 			unitAction = new UnitAction(direction * velocity,
 					firstStride.action == Action.JUMP_UP || (shoot && tick % 2 == 0),
 					firstStride.action == Action.JUMP_DOWN, aim,

@@ -28,12 +28,14 @@ public class World {
 	double minSpeedStride = .5;
 	double averageTileLength;
 
-	public World(Vec2Double unit, Vec2Double unitSpeed, Tile[][] tiles, Properties properties, boolean debug) {
-		this(unit, unitSpeed, tiles, properties, Integer.MAX_VALUE, null, debug);
+	boolean onGround;
+
+	public World(Vec2Double unit, Vec2Double unitSpeed, Tile[][] tiles, Properties properties, boolean debug, boolean onGround) {
+		this(unit, unitSpeed, tiles, properties, Integer.MAX_VALUE, null, debug, onGround);
 	}
 
 	public World(Vec2Double unit, Vec2Double unitSpeed, Tile[][] tiles, Properties properties,
-				 int maxDistance, Vec2Double partner, boolean debug) {
+				 int maxDistance, Vec2Double partner, boolean debug, boolean onGround) {
 		this.tiles = tiles;
 		this.jumpPadHeight = (int)(properties.getJumpPadJumpSpeed()*properties.getJumpPadJumpTime());
 		this.jumpHeight = (int)(properties.getUnitJumpSpeed()*properties.getUnitJumpTime());
@@ -43,7 +45,8 @@ public class World {
 		this.debugEnabled = debug;
 		this.maxDistance = maxDistance;
 		this.partner = partner == null ? new Vec2Int(0, 0) : new Vec2Int(partner);
-		buildPaths(WorldUtils.subX(unit, unitSize.getX()), unitSpeed);
+		buildPaths(unit, unitSpeed);
+		this.onGround = onGround;
 	}
 
 	// bfs
@@ -63,10 +66,18 @@ public class World {
 		Vec2Int unitStart = new Vec2Int(unit);
 		int distanceInTiles = (int) (unitSpeed.getY() / averageTileLength);
 		for (int i = 1; i <= Math.abs(distanceInTiles); i++)
-			addEdge(queue, unitStart, WorldUtils.jump(unitStart, (int)(Math.signum(distanceInTiles) * i)),
-					distanceInTiles > 0 ? Action.JUMP_UP : Action.FALL, 0, maxHorizontalSpeed, null);
+			if (!addEdge(queue, unitStart, WorldUtils.jump(unitStart, (int)(Math.signum(distanceInTiles) * i)),
+					distanceInTiles > 0 ? Action.JUMP_UP : Action.FALL, 0, maxHorizontalSpeed, null))
+				break;
 
 		Vec2Double startSpeed = unitSpeed;
+		if (onGround ||
+			WorldUtils.unitTile(WorldUtils.down(new Vec2Int(WorldUtils.changeX(unit, unitSize.getX()))), tiles) != Tile.EMPTY ||
+			WorldUtils.unitTile(WorldUtils.down(new Vec2Int(WorldUtils.changeX(unit, -unitSize.getX()))), tiles) != Tile.EMPTY) {
+			addEdge(queue, unitStart, WorldUtils.left(unitStart), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
+			addEdge(queue, unitStart, WorldUtils.right(unitStart), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
+		}
+
 		boolean[][] visited = WorldUtils.startDetour(tiles);
 		while (!queue.isEmpty()) {
 			TilePoint fromPoint = queue.remove();
@@ -77,12 +88,11 @@ public class World {
 				unitTile = WorldUtils.unitTile(from, tiles);
 				switch (unitTile) {
 					case LADDER:
-						for (int i = 0; i <= jumpHeight; i++) {
-							for (int j = 0; j <= jumpHeight; j++) {
-								if (!addEdge(queue, from, WorldUtils.jump(from, i), strategy.Action.JUMP_UP,
-										minSpeedStride * j, maxSpeedStride * i, startSpeed)) break;
-							}
-						}
+						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
+						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
+						for (int i = 0; i <= jumpHeight; i++)
+							if (!addEdge(queue, from, WorldUtils.jump(from, -i), strategy.Action.JUMP_DOWN,
+									0, maxSpeedStride * i, startSpeed)) break;
 						break;
 				}
 				switch (tileBelowUnit) {
@@ -92,8 +102,8 @@ public class World {
 						while (addEdge(queue, from, WorldUtils.jump(from, -stride++), Action.FALL, 0,
 								maxSpeedStride, startSpeed));
 						boolean[] direction = new boolean[2];
-						for (int i = 1; i <= jumpHeight; i++) {
-							for (int j = 1; j <= jumpHeight; j++) {
+						for (int i = 0; i <= jumpHeight; i++) {
+							for (int j = 0; j <= jumpHeight; j++) {
 								Arrays.fill(direction, true);
 								for (int k = 1; k <= 1; k++) {
 									if (direction[0])
@@ -114,6 +124,9 @@ public class World {
 									0, maxSpeedStride * i, startSpeed)) break;
 						break;
 					case PLATFORM:
+						stride = 1;
+						while (addEdge(queue, from, WorldUtils.jump(from, -stride++), Action.JUMP_DOWN, 0,
+								maxSpeedStride, startSpeed));
 					case WALL:
 						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
 						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
@@ -121,6 +134,9 @@ public class World {
 						break;
 					case JUMP_PAD:
 						parabolaMove(queue, from, startSpeed, jumpPadHeight);
+						for (int i = 0; i <= jumpHeight; i++)
+							if (!addEdge(queue, from, WorldUtils.jump(from, -i), strategy.Action.JUMP_DOWN,
+									0, maxSpeedStride * i, startSpeed)) break;
 						break;
 				}
 				startSpeed = null;
@@ -205,8 +221,9 @@ public class World {
 		if (startSpeed != null && (startSpeed.getX() < edgeToAdd.minSpeed || startSpeed.getX() > edgeToAdd.maxSpeed))
 			return true;
 
-		createTilePoint(to, fromPoint, queue);
-		fromPoint.adj.add(edgeToAdd);
+		TilePoint tilePoint = createTilePoint(to, fromPoint, queue);
+		if (tilePoint != null)
+			fromPoint.adj.add(edgeToAdd);
 		return true;
 	}
 
@@ -214,7 +231,12 @@ public class World {
 		return tilePoints[startX][startY];
 	}
 
-	private void createTilePoint(Vec2Int to, TilePoint from, Queue<TilePoint> queue) {
+	public boolean accessible(Vec2Double position) {
+		Vec2Int vec2Int = new Vec2Int(position);
+		return tilePoints[vec2Int.x][vec2Int.y] != null;
+	}
+
+	private TilePoint createTilePoint(Vec2Int to, TilePoint from, Queue<TilePoint> queue) {
 		int x = to.x;
 		int y = to.y;
 		TilePoint toPoint = tilePoints[x][y];
@@ -226,6 +248,7 @@ public class World {
 			tilePoints[x][y] = toPoint;
 			queue.add(toPoint);
 		}
+		return toPoint;
 	}
 
 	public class TilePoint {
@@ -251,6 +274,20 @@ public class World {
 		private int distanceFromGround = 1;
 		public int x,y;
 		public List<Edge> adj = new ArrayList<>();
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+			TilePoint tilePoint = (TilePoint) o;
+			return x == tilePoint.x &&
+					y == tilePoint.y;
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(x, y);
+		}
 	}
 
 	static Comparator<Vec2Int> VIC = (o1, o2) -> o1.x == o2.x ? Integer.compare(o1.y, o2.y) : Integer.compare(o1.x, o2.x);

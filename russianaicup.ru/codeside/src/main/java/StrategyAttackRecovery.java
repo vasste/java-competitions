@@ -13,7 +13,7 @@ public class StrategyAttackRecovery {
 
 	private UnitStrategy initGame(Unit me, Game game) {
 		UnitStrategy strategy = new StrategyAttack();
-		if (0.5 * game.getProperties().getUnitMaxHealth() > me.getHealth())
+		if (0.6 * game.getProperties().getUnitMaxHealth() > me.getHealth())
 			strategy = new StrategyRecovery();
 		return strategy;
 	}
@@ -39,8 +39,10 @@ public class StrategyAttackRecovery {
 				break;
 			}
 		}
-		World world = new World(unit.getPosition(), unitSpeed, tiles, game.getProperties(), 50,
-				teamMateUnit == null ? null : teamMateUnit.getPosition(), debugEnabled);
+		World world = new World(unit.getPosition(), unitSpeed, tiles, game.getProperties(), 30,
+				teamMateUnit == null ? null : teamMateUnit.getPosition(), debugEnabled, unit.isOnGround());
+		Draw draw = new Draw(debugEnabled, world, tiles);
+		draw.paths(debug);
 		UnitAction unitAction;
 		if (strategy.feasible(world, unit, game, debug, unitInTick)) {
 			unitAction = strategy.getUnitAction(world, unit, game, debug, unitInTick, this);

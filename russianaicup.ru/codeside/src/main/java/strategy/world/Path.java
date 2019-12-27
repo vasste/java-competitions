@@ -106,7 +106,7 @@ public class Path {
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(levelPoint.x, levelPoint.y);
+			return Objects.hash(levelPoint);
 		}
 
 		@Override

@@ -20,16 +20,21 @@ public 	class StrategyRecovery implements UnitStrategy {
 			Level level = game.getLevel();
 			Draw draw = new Draw(debugEnabled, world, level.getTiles());
 
+			double direction = Math.signum(nearestHealth.getPosition().getX() - me.getPosition().getX());
+			double velocity = game.getProperties().getUnitMaxHorizontalSpeed();
+			boolean jumpUp = false;
+			boolean jumpDown = false;
+
 			draw.paths(destinationPath, debug);
 			if (!destinationPath.isEmpty()) {
 				Edge firstStride = destinationPath.iterator().next();
-				double velocity = firstStride.action.jump() ? game.getProperties().getJumpPadJumpSpeed() : firstStride.maxSpeed;
-				double direction = Math.signum(nearestHealth.getPosition().getX() - me.getPosition().getX());
-				return new UnitAction(direction * velocity,
-						firstStride.action == Action.JUMP_UP,
-						firstStride.action == Action.JUMP_DOWN, ZERO,
-						false, false, false, false);
+				velocity = firstStride.action.jump() ? game.getProperties().getJumpPadJumpSpeed() : firstStride.maxSpeed;
+				direction = Math.signum(nearestHealth.getPosition().getX() - me.getPosition().getX());
+				jumpUp = firstStride.action == Action.JUMP_UP;
+				jumpDown = firstStride.action == Action.JUMP_DOWN;
 			}
+			return new UnitAction(direction * velocity, jumpUp, jumpDown, ZERO,
+					false, false, false, false);
 		}
 		return NO_ACTION;
 	}
@@ -39,9 +44,9 @@ public 	class StrategyRecovery implements UnitStrategy {
 		nearestHealth = null;
 		for (LootBox lootBox : game.getLootBoxes()) {
 			if (lootBox.getItem() instanceof Item.HealthPack) {
-				if (nearestHealth == null || distanceSqr(unit.getPosition(),
-						lootBox.getPosition()) < distanceSqr(unit.getPosition(), nearestHealth.getPosition())) {
-					nearestHealth = lootBox;
+				if (nearestHealth == null ||
+					distanceSqr(unit.getPosition(), lootBox.getPosition()) < distanceSqr(unit.getPosition(), nearestHealth.getPosition())) {
+					nearestHealth = world.accessible(lootBox.getPosition()) ? lootBox : nearestHealth;
 				}
 			}
 		}
