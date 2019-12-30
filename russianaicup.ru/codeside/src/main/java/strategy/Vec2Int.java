@@ -22,8 +22,8 @@ public class Vec2Int {
 	}
 
 	public Vec2Int(Vec2Double vec2Double) {
-		this.x = (int)vec2Double.getX();
-		this.y = (int)vec2Double.getY();
+		this.x = (int)(vec2Double.getX());
+		this.y = (int)(vec2Double.getY());
 	}
 
 	@Override

@@ -19,6 +19,10 @@ public class Edge {
 		return Math.abs(to.x - from.x);
 	}
 
+	public int vertDelta() {
+		return Math.abs(to.y - from.y);
+	}
+
 	public double horzDirection() {
 		return Math.signum(to.x - from.x);
 	}

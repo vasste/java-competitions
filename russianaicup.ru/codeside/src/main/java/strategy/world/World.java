@@ -67,7 +67,7 @@ public class World {
 		int distanceInTiles = (int) (unitSpeed.getY() / averageTileLength);
 		for (int i = 1; i <= Math.abs(distanceInTiles); i++)
 			if (!addEdge(queue, unitStart, WorldUtils.jump(unitStart, (int)(Math.signum(distanceInTiles) * i)),
-					distanceInTiles > 0 ? Action.JUMP_UP : Action.FALL, 0, maxHorizontalSpeed, null))
+					distanceInTiles > 0 ? Action.JUMP_UP : Action.FALL, 0, 0, null))
 				break;
 
 		Vec2Double startSpeed = unitSpeed;
@@ -91,7 +91,7 @@ public class World {
 						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
 						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
 						for (int i = 0; i <= jumpHeight; i++)
-							if (!addEdge(queue, from, WorldUtils.jump(from, -i), strategy.Action.JUMP_DOWN,
+							if (!addEdge(queue, from, WorldUtils.jump(from, i), Action.JUMP_UP,
 									0, maxSpeedStride * i, startSpeed)) break;
 						break;
 				}
@@ -100,12 +100,12 @@ public class World {
 						int stride = 1;
 						// TODO add left, right fall
 						while (addEdge(queue, from, WorldUtils.jump(from, -stride++), Action.FALL, 0,
-								maxSpeedStride, startSpeed));
+								0, startSpeed));
 						boolean[] direction = new boolean[2];
 						for (int i = 0; i <= jumpHeight; i++) {
 							for (int j = 0; j <= jumpHeight; j++) {
 								Arrays.fill(direction, true);
-								for (int k = 1; k <= 1; k++) {
+								for (int k = 1; k <= 2; k++) {
 									if (direction[0])
 										direction[0] = addEdge(queue, from, WorldUtils.left(from, k), Action.JUMP_UP,
 												minSpeedStride * j, maxSpeedStride * i, startSpeed);
@@ -194,7 +194,7 @@ public class World {
 		boolean jump = action == Action.JUMP_UP || action == Action.JUMP_DOWN;
 
 		// cannot jump up vertically
-		if (jump && maxSpeed < edgeToAdd.horDelta()) {
+		if (jump && edgeToAdd.vertDelta() > 2 && maxSpeed > .5) {
 			return true;
 		}
 
@@ -210,6 +210,7 @@ public class World {
 
 		edgeToAdd.action = action;
 		edgeToAdd.cost = 1/maxSpeed;
+		if (action.jump() && maxSpeed == 0) edgeToAdd.cost = .3;
 		edgeToAdd.minSpeed = minSpeed;
 		edgeToAdd.maxSpeed = maxSpeed;
 
@@ -218,8 +219,8 @@ public class World {
 				return true;
 		}
 
-		if (startSpeed != null && (startSpeed.getX() < edgeToAdd.minSpeed || startSpeed.getX() > edgeToAdd.maxSpeed))
-			return true;
+//		if (startSpeed != null && (startSpeed.getX() < edgeToAdd.minSpeed || startSpeed.getX() > edgeToAdd.maxSpeed))
+//			return true;
 
 		TilePoint tilePoint = createTilePoint(to, fromPoint, queue);
 		if (tilePoint != null)

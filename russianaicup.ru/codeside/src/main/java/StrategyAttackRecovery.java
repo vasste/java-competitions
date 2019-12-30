@@ -6,7 +6,7 @@ import java.util.Map;
 
 public class StrategyAttackRecovery {
 
-    private final boolean debugEnabled = false;
+    static final boolean debugEnabled = false;
 	private Map<Integer, Unit> unitsInTick = new HashMap<>();
 	private Map<Integer, Integer> opponents = new HashMap<>();
 	private int tick;
@@ -42,7 +42,7 @@ public class StrategyAttackRecovery {
 		World world = new World(unit.getPosition(), unitSpeed, tiles, game.getProperties(), 30,
 				teamMateUnit == null ? null : teamMateUnit.getPosition(), debugEnabled, unit.isOnGround());
 		Draw draw = new Draw(debugEnabled, world, tiles);
-		draw.paths(debug);
+		DebugUtils.drawGrid(debug, game, debugEnabled);
 		UnitAction unitAction;
 		if (strategy.feasible(world, unit, game, debug, unitInTick)) {
 			unitAction = strategy.getUnitAction(world, unit, game, debug, unitInTick, this);
@@ -70,8 +70,10 @@ public class StrategyAttackRecovery {
 			boolean teamMate = gameUnit.getPlayerId() == me.getPlayerId();
 			if (!teamMate) {
 				if (opponentPlayerId == null) {
-					opponents.put(me.getId(), gameUnit.getId());
-					return gameUnit;
+					if (!opponents.containsValue(gameUnit.getId())) {
+						opponents.put(me.getId(), gameUnit.getId());
+						return gameUnit;
+					}
 				} else if (opponentPlayerId.equals(gameUnit.getId())) {
 					return gameUnit;
 				}

@@ -10,7 +10,6 @@ import static strategy.world.WorldUtils.distanceSqr;
 
 public 	class StrategyRecovery implements UnitStrategy {
 	LootBox nearestHealth;
-	private boolean debugEnabled = true;
 
 	public UnitAction getUnitAction(World world, Unit me, Game game, Debug debug, Unit before, StrategyAttackRecovery manager) {
 		if (nearestHealth != null) {
@@ -18,7 +17,7 @@ public 	class StrategyRecovery implements UnitStrategy {
 			List<Edge> destinationPath = paths.find(nearestHealth.getPosition());
 
 			Level level = game.getLevel();
-			Draw draw = new Draw(debugEnabled, world, level.getTiles());
+			Draw draw = new Draw(StrategyAttackRecovery.debugEnabled, world, level.getTiles());
 
 			double direction = Math.signum(nearestHealth.getPosition().getX() - me.getPosition().getX());
 			double velocity = game.getProperties().getUnitMaxHorizontalSpeed();
@@ -26,12 +25,19 @@ public 	class StrategyRecovery implements UnitStrategy {
 			boolean jumpDown = false;
 
 			draw.paths(destinationPath, debug);
+			double pathDirection = 0;
 			if (!destinationPath.isEmpty()) {
 				Edge firstStride = destinationPath.iterator().next();
-				velocity = firstStride.action.jump() ? game.getProperties().getJumpPadJumpSpeed() : firstStride.maxSpeed;
-				direction = Math.signum(nearestHealth.getPosition().getX() - me.getPosition().getX());
+				velocity = firstStride.maxSpeed;
 				jumpUp = firstStride.action == Action.JUMP_UP;
 				jumpDown = firstStride.action == Action.JUMP_DOWN;
+				for (Edge edge : destinationPath) {
+					pathDirection = edge.horzDirection();
+					if (pathDirection != 0)
+						break;
+				}
+				jumpUp &= Math.abs(firstStride.from.x - me.getPosition().getX()) < .1;
+				direction = pathDirection == 0 ? direction : pathDirection;
 			}
 			return new UnitAction(direction * velocity, jumpUp, jumpDown, ZERO,
 					false, false, false, false);

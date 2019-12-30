@@ -15,8 +15,8 @@ public class DebugUtils {
 		if (!debugEnabled)
 			return;
 		Tile[][] tiles = game.getLevel().getTiles();
-		for (int i = 0; i < tiles.length; i++) {
-			debug.draw(new CustomData.Line(new Vec2Float(i, 0), new Vec2Float(i, tiles[i].length), .1f,
+		for (float i = 1.0f; i < tiles.length; i++) {
+			debug.draw(new CustomData.Line(new Vec2Float(i, 0), new Vec2Float(i, tiles[(int)i].length), .1f,
 					DebugUtils.toColorFloat(Color.BLACK)));
 		}
 		for (int i = 0; i <= tiles[0].length; i++) {

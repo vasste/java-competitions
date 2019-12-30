@@ -10,7 +10,6 @@ import java.util.List;
 
 public class StrategyAttack implements UnitStrategy {
 
-	private boolean debugEnabled = true;
 	private Unit teamMateUnit;
 
 	public UnitAction getUnitAction(World world, Unit me, Game game, Debug debug, Unit meBefore, StrategyAttackRecovery manager) {
@@ -25,7 +24,7 @@ public class StrategyAttack implements UnitStrategy {
 		Vec2Double destination = null;
 
 		Level level = game.getLevel();
-		Draw draw = new Draw(debugEnabled, world, level.getTiles());
+		Draw draw = new Draw(StrategyAttackRecovery.debugEnabled, world, level.getTiles());
 		Path path = new Path(world);
 
 		// find weapon
@@ -43,9 +42,10 @@ public class StrategyAttack implements UnitStrategy {
 
 		if (destinationPath.isEmpty()) {
 			Unit opponent = manager.findOpponent(me, game);
-			if (opponent != null)
+			if (opponent != null) {
 				destination = opponent.getPosition();
-			destinationPath = path.find(destination);
+				destinationPath = path.find(destination);
+			}
 		}
 
 		draw.paths(destinationPath, debug);
@@ -60,24 +60,28 @@ public class StrategyAttack implements UnitStrategy {
 		}
 		if (!destinationPath.isEmpty()) {
 			Edge firstStride = destinationPath.iterator().next();
-			velocity = firstStride.action.jump() ? game.getProperties().getJumpPadJumpSpeed() : firstStride.maxSpeed;
 			double pathDirection = 0;
 			for (Edge edge : destinationPath) {
 				pathDirection = edge.horzDirection();
 				if (pathDirection != 0)
 					break;
 			}
-			direction = firstStride.horzDirection() == 0 ? direction : pathDirection;
+			double startPathDirection = firstStride.from.x - me.getPosition().getX();
+			velocity = firstStride.maxSpeed == 0 && Math.abs(startPathDirection) > .1 ? 1 : firstStride.maxSpeed;
+			if (Math.abs(startPathDirection) < .1)
+				direction = pathDirection == 0 ? direction : pathDirection;
+			else
+				direction = Math.signum(startPathDirection);
 			unitAction = new UnitAction(direction * velocity,
-					firstStride.action == Action.JUMP_UP || (shoot && tick % 2 == 0),
+					firstStride.action == Action.JUMP_UP && Math.abs(startPathDirection) < .1,
 					firstStride.action == Action.JUMP_DOWN, aim,
-					false, simpleReloadStrategy(me),
+					shoot, simpleReloadStrategy(me),
 					isWeaponType(me, WeaponType.ROCKET_LAUNCHER), false);
 		} else {
 			unitAction = new UnitAction(direction * velocity,
 					false,
 					false, aim,
-					false, simpleReloadStrategy(me),
+					shoot, simpleReloadStrategy(me),
 					isWeaponType(me, WeaponType.ROCKET_LAUNCHER), false);
 		}
 
