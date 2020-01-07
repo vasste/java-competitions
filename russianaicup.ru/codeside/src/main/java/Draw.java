@@ -55,8 +55,6 @@ public class Draw {
 	}
 
 	private void paths(World.TilePoint from, char[][] level) {
-		if (!debugEnabled)
-			return;
 		for (int i = 0; i < level.length; i++) {
 			for (int j = 0; j < level[i].length; j++) {
 				World.TilePoint to = tilePoints[i][j];

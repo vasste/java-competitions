@@ -61,6 +61,9 @@ public class WorldUtils {
 	public static Vec2Double changeX(Vec2Double a, double x) {
 		return new Vec2Double(a.getX() + x, a.getY());
 	}
+	public static Vec2Double changeY(Vec2Double a, double y) {
+		return new Vec2Double(a.getX(), a.getY() + y);
+	}
 
 	public static Vec2Int down(Vec2Int from) {
 		return new Vec2Int(from.x, yU(from, -1));
@@ -78,8 +81,8 @@ public class WorldUtils {
 		return new Vec2Float((float)vec2Double.getX(), (float)vec2Double.getY());
 	}
 
-	public static Vec2Float toFloat(Vec2Int vec2Double) {
-		return new Vec2Float((float)vec2Double.x, (float)vec2Double.y);
+	public static Vec2Float toFloat(Vec2Int vec2Int) {
+		return new Vec2Float((float)vec2Int.x, (float)vec2Int.y);
 	}
 
 	public static double xU(Vec2Double position) {

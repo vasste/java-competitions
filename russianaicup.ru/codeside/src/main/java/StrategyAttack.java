@@ -18,7 +18,6 @@ public class StrategyAttack implements UnitStrategy {
 				this.teamMateUnit = unit;
 		}
 
-		int tick = game.getCurrentTick();
 		UnitAction unitAction = NO_ACTION;
 		List<Edge> destinationPath = Collections.emptyList();
 		Vec2Double destination = null;
@@ -40,17 +39,18 @@ public class StrategyAttack implements UnitStrategy {
 			}
 		}
 
-		if (destinationPath.isEmpty()) {
+		if (me.getWeapon() != null && destinationPath.isEmpty()) {
 			Unit opponent = manager.findOpponent(me, game);
-			if (opponent != null) {
-				destination = opponent.getPosition();
-				destinationPath = path.find(destination);
-			}
+			if (opponent == null)
+				opponent = manager.findOpponent(teamMateUnit, game);
+
+			destination = opponent.getPosition();
+			destinationPath = path.find(destination);
 		}
 
 		draw.paths(destinationPath, debug);
 		double direction = 0;
-		double velocity = game.getProperties().getUnitMaxHorizontalSpeed();
+		double velocity = game.getProperties().getUnitMaxHorizontalSpeed()/2;
 		boolean shoot = false;
 		Vec2Double aim = ZERO;
 		if (destination != null) {
@@ -60,20 +60,9 @@ public class StrategyAttack implements UnitStrategy {
 		}
 		if (!destinationPath.isEmpty()) {
 			Edge firstStride = destinationPath.iterator().next();
-			double pathDirection = 0;
-			for (Edge edge : destinationPath) {
-				pathDirection = edge.horzDirection();
-				if (pathDirection != 0)
-					break;
-			}
-			double startPathDirection = firstStride.from.x - me.getPosition().getX();
-			velocity = firstStride.maxSpeed == 0 && Math.abs(startPathDirection) > .1 ? 1 : firstStride.maxSpeed;
-			if (Math.abs(startPathDirection) < .1)
-				direction = pathDirection == 0 ? direction : pathDirection;
-			else
-				direction = Math.signum(startPathDirection);
-			unitAction = new UnitAction(direction * velocity,
-					firstStride.action == Action.JUMP_UP && Math.abs(startPathDirection) < .1,
+			direction = firstStride.toD.getX() - me.getPosition().getX();
+			unitAction = new UnitAction(direction * Math.max(.8d, firstStride.maxSpeed),
+					firstStride.action == Action.JUMP_UP,
 					firstStride.action == Action.JUMP_DOWN, aim,
 					shoot, simpleReloadStrategy(me),
 					isWeaponType(me, WeaponType.ROCKET_LAUNCHER), false);
@@ -96,9 +85,9 @@ public class StrategyAttack implements UnitStrategy {
 		Vec2Double aim = ZERO;
 
 		for (Edge edge : destinationPath)
-			shoot &= WorldUtils.unitTile(edge.to, tiles) == Tile.EMPTY && !isPartnerInLine(myPosition, opponent);
+			shoot &= WorldUtils.unitTile(edge.to, tiles) == Tile.EMPTY;
 
-		if (shoot) {
+		if (shoot && destinationPath.size() < 4) {
 			double minTilesToShot =
 					getWeaponRadius(game.getProperties(), unit.getWeapon().getTyp())/averageTileLength;
 			shoot = minTilesToShot <= destinationPath.size();
@@ -106,18 +95,6 @@ public class StrategyAttack implements UnitStrategy {
 		}
 
 		return shoot ? aim : ZERO;
-	}
-
-	// TODO might be incorrect
-	private boolean isPartnerInLine(Vec2Double me, Vec2Double opponent) {
-		if (teamMateUnit == null)
-			return false;
-		Vec2Double partnerPos = teamMateUnit.getPosition();
-		double toPartnerX = Math.signum(me.getX() - partnerPos.getX());
-		double toOpponentX = Math.signum(me.getX() - opponent.getX());
-		double toPartnerY = Math.signum(me.getY() - partnerPos.getY());
-		double toOpponentY = Math.signum(me.getY() - opponent.getY());
-		return toPartnerX == toOpponentX ^ toPartnerY == toOpponentY;
 	}
 
 	@Override

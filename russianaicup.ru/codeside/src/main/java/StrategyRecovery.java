@@ -24,23 +24,23 @@ public 	class StrategyRecovery implements UnitStrategy {
 			boolean jumpUp = false;
 			boolean jumpDown = false;
 
+			Unit nearestEnemy = manager.findOpponent(me, game);
+			Vec2Double aim = new Vec2Double(0, 0);
+			if (nearestEnemy != null) {
+				aim = new Vec2Double(nearestEnemy.getPosition().getX() - me.getPosition().getX(),
+						nearestEnemy.getPosition().getY() - me.getPosition().getY());
+			}
+
 			draw.paths(destinationPath, debug);
-			double pathDirection = 0;
 			if (!destinationPath.isEmpty()) {
 				Edge firstStride = destinationPath.iterator().next();
-				velocity = firstStride.maxSpeed;
+				velocity = Math.max(.8d, firstStride.maxSpeed);
 				jumpUp = firstStride.action == Action.JUMP_UP;
 				jumpDown = firstStride.action == Action.JUMP_DOWN;
-				for (Edge edge : destinationPath) {
-					pathDirection = edge.horzDirection();
-					if (pathDirection != 0)
-						break;
-				}
-				jumpUp &= Math.abs(firstStride.from.x - me.getPosition().getX()) < .1;
-				direction = pathDirection == 0 ? direction : pathDirection;
+				direction = firstStride.toD.getX() - me.getPosition().getX();
 			}
-			return new UnitAction(direction * velocity, jumpUp, jumpDown, ZERO,
-					false, false, false, false);
+			return new UnitAction(direction * velocity, jumpUp, jumpDown, aim,
+					true, false, false, false);
 		}
 		return NO_ACTION;
 	}

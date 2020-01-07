@@ -4,30 +4,34 @@ import strategy.world.World;
 import java.util.HashMap;
 import java.util.Map;
 
-public class StrategyAttackRecovery {
+class StrategyAttackRecovery {
 
-    static final boolean debugEnabled = false;
+	public static final boolean debugEnabled = true;
 	private Map<Integer, Unit> unitsInTick = new HashMap<>();
 	private Map<Integer, Integer> opponents = new HashMap<>();
 	private int tick;
+	private StrategyAttack strategyAttack = new StrategyAttack();
+	private StrategyRecovery strategyRecovery = new StrategyRecovery();
 
 	private UnitStrategy initGame(Unit me, Game game) {
-		UnitStrategy strategy = new StrategyAttack();
 		if (0.6 * game.getProperties().getUnitMaxHealth() > me.getHealth())
-			strategy = new StrategyRecovery();
-		return strategy;
+			return strategyRecovery;
+		return strategyAttack;
 	}
 
 	public UnitAction getAction(Unit unit, Game game, Debug debug) {
 		UnitStrategy strategy = initGame(unit, game);
 		Unit unitInTick = initMove(unit, game);
 		JumpState state = unit.getJumpState();
-		double horzUnitSpeed = Math.abs(unit.getPosition().getX() - unitInTick.getPosition().getX());
-		double vertUnitSpeed = Math.abs(unit.getPosition().getY() - unitInTick.getPosition().getY());
-		Vec2Double unitSpeed = new Vec2Double(horzUnitSpeed, Math.max(state.getSpeed(), vertUnitSpeed));
+		double horzUnitSpeed = unit.getPosition().getX() - unitInTick.getPosition().getX();
+		double vertUnitSpeed = unit.getPosition().getY() - unitInTick.getPosition().getY();
+		Vec2Double unitSpeed = new Vec2Double(horzUnitSpeed,
+				unit.isOnGround() ? 0 : Math.max(state.getSpeed(), vertUnitSpeed));
 
-		debug.draw(DebugUtils.write(horzUnitSpeed + "", 1, 10));
-		debug.draw(DebugUtils.write(vertUnitSpeed + "", 1, 11f));
+		if (debugEnabled) {
+			debug.draw(DebugUtils.write(horzUnitSpeed + "", 1, 10));
+			debug.draw(DebugUtils.write(vertUnitSpeed + "", 1, 11f));
+		}
 
 		Level level = game.getLevel();
 		Tile[][] tiles = level.getTiles();
@@ -40,14 +44,13 @@ public class StrategyAttackRecovery {
 			}
 		}
 		World world = new World(unit.getPosition(), unitSpeed, tiles, game.getProperties(), 30,
-				teamMateUnit == null ? null : teamMateUnit.getPosition(), debugEnabled, unit.isOnGround());
-		Draw draw = new Draw(debugEnabled, world, tiles);
+				teamMateUnit == null ? null : teamMateUnit.getPosition(), unit.isOnGround());
 		DebugUtils.drawGrid(debug, game, debugEnabled);
 		UnitAction unitAction;
 		if (strategy.feasible(world, unit, game, debug, unitInTick)) {
 			unitAction = strategy.getUnitAction(world, unit, game, debug, unitInTick, this);
 		} else {
-			unitAction = new StrategyAttack().getUnitAction(world, unit, game, debug, unitInTick, this);
+			unitAction = strategyAttack.getUnitAction(world, unit, game, debug, unitInTick, this);
 		}
 		saveMove(unit, game);
 		return unitAction;

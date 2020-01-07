@@ -15,7 +15,7 @@ public class WorldTest {
 
 	@Test
 	public void buildWorldTest() throws IOException {
-		String fileName = "level-jump-pad*.txt";
+		String fileName = "level-jump3.txt";
 		Tile[][] tiles = TestUtils.readTiles(fileName);
 		Vec2Double unit = TestUtils.findPosition(fileName, 'P');
 		Properties properties = new Properties();
@@ -25,7 +25,8 @@ public class WorldTest {
 		properties.setUnitJumpTime(5);
 		properties.setUnitSize(new Vec2Double(0.9, 1.8));
 		Vec2Double unitSpeed = new Vec2Double(0 ,0);
-		World world = new World(unit, unitSpeed, tiles, properties, 50, new Vec2Double(0, 0), true, false);
+		World world = new World(unit, unitSpeed, tiles, properties, 50, new Vec2Double(0, 0),
+				true);
 		//List<LootBox> boxes = Utils.readLootBoxes(fileName);
 		World.TilePoint point = world.getStartPoint();
 		//Assert.assertTrue(point.adj.stream().anyMatch(e -> e.action == Action.JUMP_UP));
