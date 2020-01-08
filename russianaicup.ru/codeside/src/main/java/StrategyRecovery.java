@@ -72,7 +72,7 @@ public 	class StrategyRecovery implements UnitStrategy {
 		teamMateLoot.remove(me.getId());
 		nearestHealth = null;
 		for (LootBox lootBox : game.getLootBoxes()) {
-			Vec2Double partnerLoot = teamMateLoot.get(teamMateUnit.getId());
+			Vec2Double partnerLoot = teamMateUnit == null ? null : teamMateLoot.get(teamMateUnit.getId());
 			if (lootBox.getItem() instanceof Item.HealthPack &&
 					Comparator.nullsLast(WorldUtils.VDC).compare(partnerLoot, lootBox.getPosition()) != 0) {
 				if (nearestHealth == null ||

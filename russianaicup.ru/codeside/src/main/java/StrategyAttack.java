@@ -27,28 +27,17 @@ public class StrategyAttack implements UnitStrategy {
 		// find opponent
 		// attack
 		Vec2Double closestWeapon = teamMateLoot.get(me.getId());
-		if (closestWeapon == null) {
-			for (LootBox lootBox : game.getLootBoxes()) {
-				if (me.getWeapon() == null && lootBox.getItem() instanceof Item.Weapon) {
-					if (teamMateUnit != null &&
-							WorldUtils.VDC.compare(teamMateLoot.get(teamMateUnit.getId()), lootBox.getPosition()) == 0)
-						continue;
-					if (closestWeapon == null) closestWeapon = lootBox.getPosition();
-					if (WorldUtils.distanceManhattan(new Vec2Int(lootBox.getPosition()), new Vec2Int(me.getPosition())) <
-							WorldUtils.distanceManhattan(new Vec2Int(closestWeapon), new Vec2Int(me.getPosition()))) {
-						closestWeapon = lootBox.getPosition();
-					}
-				}
-			}
-		} else {
-			if (WorldUtils.distanceManhattan(new Vec2Int(closestWeapon), new Vec2Int(me.getPosition())) == 0) {
-				teamMateLoot.remove(me.getId());
-				closestWeapon = null;
-			}
+		if (closestWeapon == null && me.getWeapon() == null) {
+			closestWeapon = closestWeapon(me, game, closestWeapon);
+		} else if (closestWeapon != null && me.getWeapon() != null) {
+			teamMateLoot.remove(me.getId());
+			closestWeapon = null;
 		}
 
 		if (closestWeapon != null) {
 			teamMateLoot.putIfAbsent(me.getId(), closestWeapon);
+
+			// TODO check the weapon is available
 			destinationPath = path.find(closestWeapon);
 			if (!destinationPath.isEmpty()) {
 				destination = closestWeapon;
@@ -60,8 +49,10 @@ public class StrategyAttack implements UnitStrategy {
 			if (opponent == null)
 				opponent = manager.findOpponent(teamMateUnit, game);
 
-			destination = opponent.getPosition();
-			destinationPath = path.find(destination);
+			if (opponent != null) {
+				destination = opponent.getPosition();
+				destinationPath = path.find(destination);
+			}
 		}
 
 		draw.paths(destinationPath, debug);
@@ -77,14 +68,23 @@ public class StrategyAttack implements UnitStrategy {
 
 
 		if (!destinationPath.isEmpty()) {
-			Edge firstStride = destinationPath.iterator().next();
-			direction = firstStride.toD.getX() - me.getPosition().getX();
-			unitAction = new UnitAction(direction * Math.max(.8, firstStride.maxSpeed),
-					firstStride.action == Action.JUMP_UP,
-					firstStride.action == Action.JUMP_DOWN, aim,
-					shoot, simpleReloadStrategy(me),
-					manager.isWeaponType(me, WeaponType.ROCKET_LAUNCHER) ||
-							manager.isWeaponType(me, WeaponType.PISTOL), false);
+			if (shoot) {
+				unitAction = new UnitAction(0,
+						false,
+						false, aim,
+						shoot, simpleReloadStrategy(me),
+						manager.isWeaponType(me, WeaponType.ROCKET_LAUNCHER) ||
+								manager.isWeaponType(me, WeaponType.PISTOL), false);
+			} else {
+				Edge firstStride = destinationPath.iterator().next();
+				direction = firstStride.toD.getX() - me.getPosition().getX();
+				unitAction = new UnitAction(direction * Math.max(.8, firstStride.maxSpeed),
+						 firstStride.action == Action.JUMP_UP,
+						firstStride.action == Action.JUMP_DOWN, aim,
+						shoot, simpleReloadStrategy(me),
+						manager.isWeaponType(me, WeaponType.ROCKET_LAUNCHER) ||
+								manager.isWeaponType(me, WeaponType.PISTOL), false);
+			}
 		} else {
 			unitAction = new UnitAction(direction * velocity,
 					false,
@@ -98,6 +98,22 @@ public class StrategyAttack implements UnitStrategy {
 
 	}
 
+	private Vec2Double closestWeapon(Unit me, Game game, Vec2Double closestWeapon) {
+		for (LootBox lootBox : game.getLootBoxes()) {
+			if (me.getWeapon() == null && lootBox.getItem() instanceof Item.Weapon) {
+				if (teamMateUnit != null &&
+						WorldUtils.VDC.compare(teamMateLoot.get(teamMateUnit.getId()), lootBox.getPosition()) == 0)
+					continue;
+				if (closestWeapon == null) closestWeapon = lootBox.getPosition();
+				if (WorldUtils.distanceManhattan(new Vec2Int(lootBox.getPosition()), new Vec2Int(me.getPosition())) <
+						WorldUtils.distanceManhattan(new Vec2Int(closestWeapon), new Vec2Int(me.getPosition()))) {
+					closestWeapon = lootBox.getPosition();
+				}
+			}
+		}
+		return closestWeapon;
+	}
+
 	Vec2Double shootAt(Unit unit, List<Edge> destinationPath, Game game, Vec2Double opponent, double averageTileLength) {
 		boolean shoot = unit.getWeapon() != null;
 		Vec2Double myPosition = unit.getPosition();
@@ -107,7 +123,7 @@ public class StrategyAttack implements UnitStrategy {
 		for (Edge edge : destinationPath)
 			shoot &= WorldUtils.unitTile(edge.to, tiles) == Tile.EMPTY;
 
-		if (shoot && destinationPath.size() < 4) {
+		if (shoot && WorldUtils.distanceManhattan(new Vec2Int(opponent), new Vec2Int(myPosition)) < 4) {
 			double minTilesToShot =
 					getWeaponRadius(game.getProperties(), unit.getWeapon().getTyp())/averageTileLength;
 			shoot = minTilesToShot <= destinationPath.size();

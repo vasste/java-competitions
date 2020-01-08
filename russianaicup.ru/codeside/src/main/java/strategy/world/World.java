@@ -1,6 +1,5 @@
 package strategy.world;
 
-import jdk.nashorn.internal.ir.JumpStatement;
 import model.JumpState;
 import model.Properties;
 import model.Tile;
@@ -22,7 +21,6 @@ public class World {
 	public int maxDistance;
 	private Vec2Int partner;
 	private Vec2Double unitSize;
-	private int possibleVertDistanceInTiles;
 
 	double maxSpeedStride = 1;
 	double minSpeedStride = .5;
@@ -36,10 +34,8 @@ public class World {
 		this.jumpPadHeight = (int)(properties.getJumpPadJumpSpeed()*properties.getJumpPadJumpTime());
 		this.jumpHeight = (int)(properties.getUnitJumpSpeed()*properties.getUnitJumpTime());
 		this.averageTileLength = properties.getUnitSize().getY()/1.5; // 2 tiles
-		this.possibleVertDistanceInTiles =
-			(int)(jumpState.getMaxTime()*properties.getUnitJumpSpeed()/averageTileLength) + 1;
 		this.unitSize = properties.getUnitSize();
-		this.maxHorizontalSpeed = 8;
+		this.maxHorizontalSpeed = 7;
 		this.maxDistance = maxDistance;
 		this.partner = partner == null ? new Vec2Int(0, 0) : new Vec2Int(partner);
 		buildPaths(unit, unitSpeed);
@@ -55,13 +51,13 @@ public class World {
 		Queue<TilePoint> queue = new LinkedList<>();
 		Tile unitTile = WorldUtils.unitTile(new Vec2Int(unit), tiles);
 		TilePoint startPoint = new TilePoint(new Vec2Int(unit), unitTile, null);
+
 		startX = startPoint.x;
 		startY = startPoint.y;
 		tilePoints[startX][startY] = startPoint;
 		queue.add(startPoint);
 
 		Vec2Int unitStart = new Vec2Int(unit);
-		Vec2Double startSpeed = unitSpeed;
 		if (onGround ||
 			WorldUtils.unitTile(WorldUtils.down(new Vec2Int(WorldUtils.changeX(unit, unitSize.getX()))), tiles) != Tile.EMPTY ||
 			WorldUtils.unitTile(WorldUtils.down(new Vec2Int(WorldUtils.changeX(unit, -unitSize.getX()))), tiles) != Tile.EMPTY) {
@@ -120,12 +116,12 @@ public class World {
 						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxSpeedStride, jumpHeight);
 						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxSpeedStride, jumpHeight);
 						for (int j = 0; j < 2; j++)
-							for (int i = 1; i <= jumpHeight; i++)
+							for (int i = 1; i <= 2; i++)
 								if (!addEdge(queue, from, WorldUtils.jump(from, -i), Action.JUMP_DOWN,
 										0, maxSpeedStride * j, jumpHeight)) break;
 						break;
 					case PLATFORM:
-						leftRight(queue, startSpeed, from);
+						leftRight(queue, from);
 						for (int j = 0; j < 2; j++)
 							for (int i = 0; i <= maxDistance; i++) {
 								if (!addEdge(queue, from, WorldUtils.jump(from, -i), Action.JUMP_DOWN, 0,
@@ -134,29 +130,18 @@ public class World {
 								}
 							}
 					case WALL:
-						leftRight(queue, startSpeed, from);
-						for (int i = 0; i <= maxDistance; i++) {
-							if (!addEdge(queue, from, WorldUtils.jump(from, -i), Action.JUMP_DOWN, 0,
-									maxSpeedStride * i, jumpHeight)) {
-								break;
-							}
-						}
-						parabolaMove(queue, from, startSpeed, jumpHeight);
+						leftRight(queue, from);
+						parabolaMove(queue, from, jumpHeight);
 						break;
 					case JUMP_PAD:
-						parabolaMove(queue, from, startSpeed, jumpPadHeight);
-//						for (int i = 0; i <= jumpHeight; i++)
-//							if (!addEdge(queue, from, WorldUtils.jump(from, -i), strategy.Action.JUMP_DOWN,
-//									0, maxSpeedStride * i, startSpeed)) break;
-//						break;
+						parabolaMove(queue, from, jumpPadHeight);
 				}
-				startSpeed = null;
 			}
 		}
 		return startPoint;
 	}
 
-	private void leftRight(Queue<TilePoint> queue, Vec2Double startSpeed, Vec2Int from) {
+	private void leftRight(Queue<TilePoint> queue, Vec2Int from) {
 		boolean[] direction;
 		direction = new boolean[2];
 		Arrays.fill(direction, true);
@@ -175,7 +160,7 @@ public class World {
 		return averageTileLength;
 	}
 
-	private void parabolaMove(Queue<TilePoint> queue, Vec2Int from, Vec2Double startSpeed, double height) {
+	private void parabolaMove(Queue<TilePoint> queue, Vec2Int from, double height) {
 		boolean[] direction = new boolean[3];
 		for (int i = 0; i <= maxHorizontalSpeed; i++) {
 			for (int j = 0; j <= maxHorizontalSpeed; j++) {
