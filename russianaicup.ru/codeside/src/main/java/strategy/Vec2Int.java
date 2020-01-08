@@ -3,6 +3,8 @@ package strategy;
 import model.Vec2Double;
 import strategy.world.World;
 
+import java.util.Objects;
+
 public class Vec2Int {
 	public int x,y;
 
@@ -32,5 +34,19 @@ public class Vec2Int {
 				"x=" + x +
 				", y=" + y +
 				'}';
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+		Vec2Int vec2Int = (Vec2Int) o;
+		return x == vec2Int.x &&
+				y == vec2Int.y;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(x, y);
 	}
 }

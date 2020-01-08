@@ -31,8 +31,8 @@ public class WorldUtils {
 		return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 	}
 
-	public static Comparator<Vec2Double> VDC =
-			Comparator.comparingDouble(Vec2Double::getX).thenComparingDouble(Vec2Double::getY);
+	public static Comparator<Vec2Double> VDC = Comparator.nullsLast(
+			Comparator.comparingDouble(Vec2Double::getX).thenComparingDouble(Vec2Double::getY));
 
 	public static Vec2Int left(Vec2Int from, int stride) {
 		return new Vec2Int(xU(from, -stride), from.y);

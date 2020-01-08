@@ -1,5 +1,7 @@
 package strategy.world;
 
+import jdk.nashorn.internal.ir.JumpStatement;
+import model.JumpState;
 import model.Properties;
 import model.Tile;
 import model.Vec2Double;
@@ -20,6 +22,7 @@ public class World {
 	public int maxDistance;
 	private Vec2Int partner;
 	private Vec2Double unitSize;
+	private int possibleVertDistanceInTiles;
 
 	double maxSpeedStride = 1;
 	double minSpeedStride = .5;
@@ -28,13 +31,15 @@ public class World {
 	boolean onGround;
 
 	public World(Vec2Double unit, Vec2Double unitSpeed, Tile[][] tiles, Properties properties,
-				 int maxDistance, Vec2Double partner, boolean onGround) {
+				 int maxDistance, Vec2Double partner, boolean onGround, JumpState jumpState) {
 		this.tiles = tiles;
 		this.jumpPadHeight = (int)(properties.getJumpPadJumpSpeed()*properties.getJumpPadJumpTime());
 		this.jumpHeight = (int)(properties.getUnitJumpSpeed()*properties.getUnitJumpTime());
 		this.averageTileLength = properties.getUnitSize().getY()/1.5; // 2 tiles
+		this.possibleVertDistanceInTiles =
+			(int)(jumpState.getMaxTime()*properties.getUnitJumpSpeed()/averageTileLength) + 1;
 		this.unitSize = properties.getUnitSize();
-		this.maxHorizontalSpeed = 7;
+		this.maxHorizontalSpeed = 8;
 		this.maxDistance = maxDistance;
 		this.partner = partner == null ? new Vec2Int(0, 0) : new Vec2Int(partner);
 		buildPaths(unit, unitSpeed);
@@ -56,18 +61,12 @@ public class World {
 		queue.add(startPoint);
 
 		Vec2Int unitStart = new Vec2Int(unit);
-		int distanceInTiles = (int) (unitSpeed.getY() / averageTileLength);
-		for (int i = 1; i <= Math.abs(distanceInTiles); i++)
-			if (!addEdge(queue, unitStart, WorldUtils.jump(unitStart, (int)(Math.signum(distanceInTiles) * i)),
-					distanceInTiles > 0 ? Action.JUMP_UP : Action.JUMP_DOWN, 0, 0, null))
-				break;
-
 		Vec2Double startSpeed = unitSpeed;
 		if (onGround ||
 			WorldUtils.unitTile(WorldUtils.down(new Vec2Int(WorldUtils.changeX(unit, unitSize.getX()))), tiles) != Tile.EMPTY ||
 			WorldUtils.unitTile(WorldUtils.down(new Vec2Int(WorldUtils.changeX(unit, -unitSize.getX()))), tiles) != Tile.EMPTY) {
-			addEdge(queue, unitStart, WorldUtils.left(unitStart), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
-			addEdge(queue, unitStart, WorldUtils.right(unitStart), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
+			addEdge(queue, unitStart, WorldUtils.left(unitStart), Action.WALK, 0, maxHorizontalSpeed, jumpHeight);
+			addEdge(queue, unitStart, WorldUtils.right(unitStart), Action.WALK, 0, maxHorizontalSpeed, jumpHeight);
 		}
 
 		boolean[][] visited = WorldUtils.startDetour(tiles);
@@ -80,19 +79,25 @@ public class World {
 				unitTile = WorldUtils.unitTile(from, tiles);
 				switch (unitTile) {
 					case LADDER:
-						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxSpeedStride, startSpeed);
-						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxSpeedStride, startSpeed);
-						for (int i = 0; i <= 1; i++)
-							if (!addEdge(queue, from, WorldUtils.jump(from, i), Action.JUMP_UP,
-									0, maxSpeedStride * i, startSpeed)) break;
+						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxSpeedStride, jumpHeight);
+						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxSpeedStride, jumpHeight);
+						for (int j = 0; j < 2; j++)
+							for (int i = 1; i <= jumpHeight; i++)
+								if (!addEdge(queue, from, WorldUtils.jump(from, i), Action.JUMP_UP,
+										0, maxSpeedStride * j, jumpHeight)) break;
 						break;
 				}
 				switch (tileBelowUnit) {
 					case EMPTY:
-						// TODO add left, right fall
 						for (int i = 0; i <= maxDistance; i++) {
 							if (!addEdge(queue, from, WorldUtils.jump(from, -i), Action.JUMP_DOWN, 0,
-									maxSpeedStride * i, startSpeed)) {
+									0, maxDistance)) {
+								break;
+							}
+						}
+						for (int i = 0; i <= jumpHeight - fromPoint.distanceFromGround; i++) {
+							if (!addEdge(queue, from, WorldUtils.jump(from, i), Action.JUMP_UP, 0,
+									0, jumpHeight)) {
 								break;
 							}
 						}
@@ -103,39 +108,47 @@ public class World {
 								for (int k = 1; k <= 2; k++) {
 									if (direction[0])
 										direction[0] = addEdge(queue, from, WorldUtils.left(from, k), Action.JUMP_UP,
-												minSpeedStride * j, maxSpeedStride * i, startSpeed);
+												minSpeedStride * j, maxSpeedStride * i, jumpHeight);
 									if (direction[1])
 										direction[1] = addEdge(queue, from, WorldUtils.right(from, k), Action.JUMP_UP,
-												minSpeedStride * j, maxSpeedStride * i, startSpeed);
+												minSpeedStride * j, maxSpeedStride * i, jumpHeight);
 								}
 							}
 						}
 						break;
 					case LADDER:
-						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxSpeedStride, startSpeed);
-						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxSpeedStride, startSpeed);
-						for (int i = 0; i <= 1; i++)
-							if (!addEdge(queue, from, WorldUtils.jump(from, -i), strategy.Action.JUMP_DOWN,
-									0, maxSpeedStride * i, startSpeed)) break;
+						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxSpeedStride, jumpHeight);
+						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxSpeedStride, jumpHeight);
+						for (int j = 0; j < 2; j++)
+							for (int i = 1; i <= jumpHeight; i++)
+								if (!addEdge(queue, from, WorldUtils.jump(from, -i), Action.JUMP_DOWN,
+										0, maxSpeedStride * j, jumpHeight)) break;
 						break;
 					case PLATFORM:
+						leftRight(queue, startSpeed, from);
+						for (int j = 0; j < 2; j++)
+							for (int i = 0; i <= maxDistance; i++) {
+								if (!addEdge(queue, from, WorldUtils.jump(from, -i), Action.JUMP_DOWN, 0,
+										maxSpeedStride * j, jumpHeight)) {
+									break;
+								}
+							}
+					case WALL:
+						leftRight(queue, startSpeed, from);
 						for (int i = 0; i <= maxDistance; i++) {
 							if (!addEdge(queue, from, WorldUtils.jump(from, -i), Action.JUMP_DOWN, 0,
-									maxSpeedStride, startSpeed)) {
+									maxSpeedStride * i, jumpHeight)) {
 								break;
 							}
 						}
-					case WALL:
-						addEdge(queue, from, WorldUtils.left(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
-						addEdge(queue, from, WorldUtils.right(from), Action.WALK, 0, maxHorizontalSpeed, startSpeed);
 						parabolaMove(queue, from, startSpeed, jumpHeight);
 						break;
 					case JUMP_PAD:
 						parabolaMove(queue, from, startSpeed, jumpPadHeight);
-						for (int i = 0; i <= jumpHeight; i++)
-							if (!addEdge(queue, from, WorldUtils.jump(from, -i), strategy.Action.JUMP_DOWN,
-									0, maxSpeedStride * i, startSpeed)) break;
-						break;
+//						for (int i = 0; i <= jumpHeight; i++)
+//							if (!addEdge(queue, from, WorldUtils.jump(from, -i), strategy.Action.JUMP_DOWN,
+//									0, maxSpeedStride * i, startSpeed)) break;
+//						break;
 				}
 				startSpeed = null;
 			}
@@ -143,19 +156,34 @@ public class World {
 		return startPoint;
 	}
 
+	private void leftRight(Queue<TilePoint> queue, Vec2Double startSpeed, Vec2Int from) {
+		boolean[] direction;
+		direction = new boolean[2];
+		Arrays.fill(direction, true);
+		for (int k = 1; k <= 3; k++) {
+			if (direction[0])
+				direction[0] = addEdge(queue, from, WorldUtils.left(from, k), Action.WALK,
+						0, maxHorizontalSpeed, jumpHeight);
+
+			if (direction[1])
+				direction[1] = addEdge(queue, from, WorldUtils.right(from, k), Action.WALK,
+						0, maxHorizontalSpeed, jumpHeight);
+		}
+	}
+
 	public double getAverageTileLength() {
 		return averageTileLength;
 	}
 
 	private void parabolaMove(Queue<TilePoint> queue, Vec2Int from, Vec2Double startSpeed, double height) {
-	boolean[] direction = new boolean[3];
+		boolean[] direction = new boolean[3];
 		for (int i = 0; i <= maxHorizontalSpeed; i++) {
 			for (int j = 0; j <= maxHorizontalSpeed; j++) {
 				Arrays.fill(direction, true);
 				for (int k = 1; k <= height; k++) {
 					if (direction[0])
 						direction[0] = addEdge(queue, from, WorldUtils.jump(from, k),
-								Action.JUMP_UP, minSpeedStride * j, maxSpeedStride * i, startSpeed);
+								Action.JUMP_UP, minSpeedStride * j, maxSpeedStride * i, height);
 //					if (direction[1])
 //						direction[1] = addEdge(queue, from, WorldUtils.jump(WorldUtils.left(from, k), k),
 //								Action.JUMP_UP, minSpeedStride * j, maxSpeedStride * i, startSpeed);
@@ -169,7 +197,7 @@ public class World {
 
 	// true looking for edges is possible
 	private boolean addEdge(Queue<TilePoint> queue, Vec2Int from, Vec2Int to, Action action,
-							double minSpeed, double maxSpeed, Vec2Double startSpeed) {
+							double minSpeed, double maxSpeed, double maxHeight) {
 		if (tiles.length <= to.x || tiles[0].length <= to.y || to.x < 0 || to.y < 0)
 			return false;
 
@@ -182,8 +210,11 @@ public class World {
 		switch (WorldUtils.unitTile(to, tiles)) {
 			case WALL:
 			case JUMP_PAD:
-			case PLATFORM:
 				return false;
+			case PLATFORM:
+				if (!action.jump())
+					return false;
+				break;
 		}
 
 		TilePoint fromPoint = tilePoints[from.x][from.y];
@@ -206,8 +237,13 @@ public class World {
 			return true;
 		}
 
+		if (action == Action.JUMP_UP && edgeToAdd.vertDelta() > maxHeight) {
+			return true;
+		}
+
 		edgeToAdd.action = action;
-		edgeToAdd.cost = 1/maxSpeed + (action.jump() ? .05 : 0);
+		edgeToAdd.cost = (1/maxSpeed + (action.jump() ? .1 : 0));
+				///(edgeToAdd.horDelta() == 0 ? edgeToAdd.vertDelta() : edgeToAdd.horDelta());
 		if (action.jump() && maxSpeed == 0) edgeToAdd.cost = .3;
 		edgeToAdd.minSpeed = minSpeed;
 		edgeToAdd.maxSpeed = maxSpeed;
@@ -216,9 +252,6 @@ public class World {
 			if (EC.compare(edge, edgeToAdd) == 0)
 				return true;
 		}
-
-//		if (startSpeed != null && (startSpeed.getX() < edgeToAdd.minSpeed || startSpeed.getX() > edgeToAdd.maxSpeed))
-//			return true;
 
 		TilePoint tilePoint = createTilePoint(to, fromPoint, queue);
 		if (tilePoint != null)
@@ -255,12 +288,11 @@ public class World {
 			this.x = point.x;
 			this.y = point.y;
 			this.tile = tile;
-			if (from == null)
-				return;
-			this.distance = from.distance + 1;
+			if (from != null)
+				this.distance = from.distance + 1;
 			Vec2Int p = new Vec2Int(point);
 			for(;p.y > 0 && WorldUtils.unitTile(p, tiles) == Tile.EMPTY; p.y--);
-			this.distanceFromGround = point.y - p.y - 1;
+			this.distanceFromGround = Math.max(0, point.y - p.y - 1);
 		}
 
 		@Override
@@ -270,7 +302,7 @@ public class World {
 
 		private int distance = 0;
 		private Tile tile;
-		private int distanceFromGround = 1;
+		public int distanceFromGround = 0;
 		public int x,y;
 		public List<Edge> adj = new ArrayList<>();
 

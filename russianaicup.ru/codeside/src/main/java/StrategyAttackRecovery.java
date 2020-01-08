@@ -26,7 +26,7 @@ class StrategyAttackRecovery {
 		double horzUnitSpeed = unit.getPosition().getX() - unitInTick.getPosition().getX();
 		double vertUnitSpeed = unit.getPosition().getY() - unitInTick.getPosition().getY();
 		Vec2Double unitSpeed = new Vec2Double(horzUnitSpeed,
-				unit.isOnGround() ? 0 : Math.max(state.getSpeed(), vertUnitSpeed));
+				!unit.isOnGround() && !state.isCanJump() ? vertUnitSpeed : state.getSpeed());
 
 		if (debugEnabled) {
 			debug.draw(DebugUtils.write(horzUnitSpeed + "", 1, 10));
@@ -44,7 +44,7 @@ class StrategyAttackRecovery {
 			}
 		}
 		World world = new World(unit.getPosition(), unitSpeed, tiles, game.getProperties(), 30,
-				teamMateUnit == null ? null : teamMateUnit.getPosition(), unit.isOnGround());
+				teamMateUnit == null ? null : teamMateUnit.getPosition(), unit.isOnGround(), state);
 		DebugUtils.drawGrid(debug, game, debugEnabled);
 		UnitAction unitAction;
 		if (strategy.feasible(world, unit, game, debug, unitInTick)) {
@@ -84,4 +84,9 @@ class StrategyAttackRecovery {
 		}
 		return null;
 	}
+
+	boolean isWeaponType(Unit unit, WeaponType weaponType) {
+		return unit.getWeapon() != null && unit.getWeapon().getTyp() == weaponType;
+	}
+
 }

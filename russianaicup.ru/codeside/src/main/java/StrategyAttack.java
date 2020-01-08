@@ -1,23 +1,20 @@
 import model.*;
+import model.Properties;
 import strategy.Action;
+import strategy.Vec2Int;
 import strategy.world.Edge;
 import strategy.world.Path;
 import strategy.world.World;
 import strategy.world.WorldUtils;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class StrategyAttack implements UnitStrategy {
 
 	private Unit teamMateUnit;
+	private Map<Integer, Vec2Double> teamMateLoot = new HashMap<>();
 
 	public UnitAction getUnitAction(World world, Unit me, Game game, Debug debug, Unit meBefore, StrategyAttackRecovery manager) {
-		for (Unit unit : game.getUnits()) {
-			if (unit.getPlayerId() == me.getPlayerId() && unit.getId() != me.getId())
-				this.teamMateUnit = unit;
-		}
-
 		UnitAction unitAction = NO_ACTION;
 		List<Edge> destinationPath = Collections.emptyList();
 		Vec2Double destination = null;
@@ -29,13 +26,32 @@ public class StrategyAttack implements UnitStrategy {
 		// find weapon
 		// find opponent
 		// attack
-		for (LootBox lootBox : game.getLootBoxes()) {
-			if (me.getWeapon() == null && lootBox.getItem() instanceof Item.Weapon)
-				destinationPath = path.find(lootBox.getPosition());
+		Vec2Double closestWeapon = teamMateLoot.get(me.getId());
+		if (closestWeapon == null) {
+			for (LootBox lootBox : game.getLootBoxes()) {
+				if (me.getWeapon() == null && lootBox.getItem() instanceof Item.Weapon) {
+					if (teamMateUnit != null &&
+							WorldUtils.VDC.compare(teamMateLoot.get(teamMateUnit.getId()), lootBox.getPosition()) == 0)
+						continue;
+					if (closestWeapon == null) closestWeapon = lootBox.getPosition();
+					if (WorldUtils.distanceManhattan(new Vec2Int(lootBox.getPosition()), new Vec2Int(me.getPosition())) <
+							WorldUtils.distanceManhattan(new Vec2Int(closestWeapon), new Vec2Int(me.getPosition()))) {
+						closestWeapon = lootBox.getPosition();
+					}
+				}
+			}
+		} else {
+			if (WorldUtils.distanceManhattan(new Vec2Int(closestWeapon), new Vec2Int(me.getPosition())) == 0) {
+				teamMateLoot.remove(me.getId());
+				closestWeapon = null;
+			}
+		}
 
+		if (closestWeapon != null) {
+			teamMateLoot.putIfAbsent(me.getId(), closestWeapon);
+			destinationPath = path.find(closestWeapon);
 			if (!destinationPath.isEmpty()) {
-				destination = lootBox.getPosition();
-				break;
+				destination = closestWeapon;
 			}
 		}
 
@@ -58,20 +74,24 @@ public class StrategyAttack implements UnitStrategy {
 			shoot = WorldUtils.VDC.compare(aim, ZERO) != 0;
 			direction = Math.signum(destination.getX() - me.getPosition().getX());
 		}
+
+
 		if (!destinationPath.isEmpty()) {
 			Edge firstStride = destinationPath.iterator().next();
 			direction = firstStride.toD.getX() - me.getPosition().getX();
-			unitAction = new UnitAction(direction * Math.max(.8d, firstStride.maxSpeed),
+			unitAction = new UnitAction(direction * Math.max(.8, firstStride.maxSpeed),
 					firstStride.action == Action.JUMP_UP,
 					firstStride.action == Action.JUMP_DOWN, aim,
 					shoot, simpleReloadStrategy(me),
-					isWeaponType(me, WeaponType.ROCKET_LAUNCHER), false);
+					manager.isWeaponType(me, WeaponType.ROCKET_LAUNCHER) ||
+							manager.isWeaponType(me, WeaponType.PISTOL), false);
 		} else {
 			unitAction = new UnitAction(direction * velocity,
 					false,
 					false, aim,
 					shoot, simpleReloadStrategy(me),
-					isWeaponType(me, WeaponType.ROCKET_LAUNCHER), false);
+					manager.isWeaponType(me, WeaponType.ROCKET_LAUNCHER) ||
+							manager.isWeaponType(me, WeaponType.PISTOL), false);
 		}
 
 		return unitAction;
@@ -98,12 +118,12 @@ public class StrategyAttack implements UnitStrategy {
 	}
 
 	@Override
-	public boolean feasible(World world, Unit unit, Game game, Debug debug, Unit before) {
+	public boolean feasible(World world, Unit me, Game game, Debug debug, Unit before) {
+		for (Unit unit : game.getUnits()) {
+			if (unit.getPlayerId() == me.getPlayerId() && unit.getId() != me.getId())
+				this.teamMateUnit = unit;
+		}
 		return true;
-	}
-
-	private boolean isWeaponType(Unit unit, WeaponType weaponType) {
-		return unit.getWeapon() != null && unit.getWeapon().getTyp() == weaponType;
 	}
 
 	private double getWeaponRadius(Properties properties, WeaponType weaponType) {
