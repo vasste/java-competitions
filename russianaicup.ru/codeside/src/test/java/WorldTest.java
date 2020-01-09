@@ -16,7 +16,7 @@ public class WorldTest {
 
 	@Test
 	public void buildWorldTest() throws IOException {
-		String fileName = "level-jump3.txt";
+		String fileName = "level-jump*.txt";
 		Tile[][] tiles = TestUtils.readTiles(fileName);
 		Vec2Double unit = TestUtils.findPosition(fileName, 'P');
 		Properties properties = new Properties();

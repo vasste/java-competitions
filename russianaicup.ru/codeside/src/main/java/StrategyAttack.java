@@ -121,13 +121,14 @@ public class StrategyAttack implements UnitStrategy {
 		Vec2Double aim = ZERO;
 
 		for (Edge edge : destinationPath)
-			shoot &= WorldUtils.unitTile(edge.to, tiles) == Tile.EMPTY;
+			shoot &= WorldUtils.unitTile(edge.to, tiles) != Tile.WALL;
 
-		if (shoot && WorldUtils.distanceManhattan(new Vec2Int(opponent), new Vec2Int(myPosition)) < 4) {
+		if (shoot) {
 			double minTilesToShot =
-					getWeaponRadius(game.getProperties(), unit.getWeapon().getTyp())/averageTileLength;
-			shoot = minTilesToShot <= destinationPath.size();
-			aim = new Vec2Double(opponent.getX() - myPosition.getX(), opponent.getY() - myPosition.getY());
+					getWeaponRadius(game.getProperties(), unit.getWeapon().getTyp()) / averageTileLength;
+			double manhattanDistance = WorldUtils.distanceManhattan(new Vec2Int(opponent), new Vec2Int(myPosition));
+			if (manhattanDistance < 8 && manhattanDistance > minTilesToShot)
+				aim = new Vec2Double(opponent.getX() - myPosition.getX(), opponent.getY() - myPosition.getY());
 		}
 
 		return shoot ? aim : ZERO;
