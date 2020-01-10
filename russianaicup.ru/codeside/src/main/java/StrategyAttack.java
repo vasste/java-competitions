@@ -32,6 +32,16 @@ public class StrategyAttack implements UnitStrategy {
 		} else if (closestWeapon != null && me.getWeapon() != null) {
 			teamMateLoot.remove(me.getId());
 			closestWeapon = null;
+		} else {
+			boolean weaponIsHere = false;
+			for (LootBox lootBox : game.getLootBoxes()) {
+				if (lootBox.getItem() instanceof Item.Weapon)
+					weaponIsHere |= WorldUtils.VDC.compare(closestWeapon, lootBox.getPosition()) == 0;
+			}
+			if (!weaponIsHere) {
+				teamMateLoot.remove(me.getId());
+				closestWeapon = null;
+			}
 		}
 
 		if (closestWeapon != null) {
@@ -78,7 +88,7 @@ public class StrategyAttack implements UnitStrategy {
 			} else {
 				Edge firstStride = destinationPath.iterator().next();
 				direction = firstStride.toD.getX() - me.getPosition().getX();
-				unitAction = new UnitAction(direction * Math.max(.8, firstStride.maxSpeed),
+				unitAction = new UnitAction(direction * Math.max(5, firstStride.maxSpeed),
 						 firstStride.action == Action.JUMP_UP,
 						firstStride.action == Action.JUMP_DOWN, aim,
 						shoot, simpleReloadStrategy(me),
@@ -127,7 +137,7 @@ public class StrategyAttack implements UnitStrategy {
 			double minTilesToShot =
 					getWeaponRadius(game.getProperties(), unit.getWeapon().getTyp()) / averageTileLength;
 			double manhattanDistance = WorldUtils.distanceManhattan(new Vec2Int(opponent), new Vec2Int(myPosition));
-			if (manhattanDistance < 8 && manhattanDistance > minTilesToShot)
+			if (manhattanDistance < Math.max(4, minTilesToShot))
 				aim = new Vec2Double(opponent.getX() - myPosition.getX(), opponent.getY() - myPosition.getY());
 		}
 
