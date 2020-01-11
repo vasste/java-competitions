@@ -225,6 +225,10 @@ public class World {
 			return true;
 		}
 
+		if (action == Action.WALK && fromPoint.distanceFromGround > jumpHeight) {
+			return true;
+		}
+
 		if (action == Action.JUMP_UP && edgeToAdd.vertDelta() > maxHeight) {
 			return true;
 		}

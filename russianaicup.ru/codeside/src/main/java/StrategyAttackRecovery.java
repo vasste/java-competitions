@@ -43,7 +43,7 @@ class StrategyAttackRecovery {
 				break;
 			}
 		}
-		World world = new World(unit.getPosition(), unitSpeed, tiles, game.getProperties(), tick < 10 ? tick : 30,
+		World world = new World(unit.getPosition(), unitSpeed, tiles, game.getProperties(), tick < 30 ? tick : 30,
 				teamMateUnit == null ? null : teamMateUnit.getPosition(), unit.isOnGround(), state);
 		DebugUtils.drawGrid(debug, game, debugEnabled);
 		UnitAction unitAction;

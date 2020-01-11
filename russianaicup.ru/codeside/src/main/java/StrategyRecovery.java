@@ -40,7 +40,7 @@ public 	class StrategyRecovery implements UnitStrategy {
 			draw.paths(destinationPath, debug);
 			if (!destinationPath.isEmpty()) {
 				Edge firstStride = destinationPath.iterator().next();
-				velocity = Math.max(.8d, firstStride.maxSpeed);
+				velocity = Math.max(5, firstStride.maxSpeed);
 				jumpUp = firstStride.action == Action.JUMP_UP;
 				jumpDown = firstStride.action == Action.JUMP_DOWN;
 				direction = firstStride.toD.getX() - me.getPosition().getX();

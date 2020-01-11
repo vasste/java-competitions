@@ -7,7 +7,9 @@ import strategy.world.Path;
 import strategy.world.World;
 import strategy.world.WorldUtils;
 
+import java.awt.*;
 import java.util.*;
+import java.util.List;
 
 public class StrategyAttack implements UnitStrategy {
 
@@ -26,6 +28,7 @@ public class StrategyAttack implements UnitStrategy {
 		// find weapon
 		// find opponent
 		// attack
+		// TODO weapon path is blocked by teammate
 		Vec2Double closestWeapon = teamMateLoot.get(me.getId());
 		if (closestWeapon == null && me.getWeapon() == null) {
 			closestWeapon = closestWeapon(me, game, closestWeapon);
@@ -46,8 +49,6 @@ public class StrategyAttack implements UnitStrategy {
 
 		if (closestWeapon != null) {
 			teamMateLoot.putIfAbsent(me.getId(), closestWeapon);
-
-			// TODO check the weapon is available
 			destinationPath = path.find(closestWeapon);
 			if (!destinationPath.isEmpty()) {
 				destination = closestWeapon;
@@ -71,14 +72,15 @@ public class StrategyAttack implements UnitStrategy {
 		boolean shoot = false;
 		Vec2Double aim = ZERO;
 		if (destination != null) {
-			aim = shootAt(me, destinationPath, game, destination, world.getAverageTileLength());
+			aim = shootAt(me, game, destination, world.getAverageTileLength(), debug);
 			shoot = WorldUtils.VDC.compare(aim, ZERO) != 0;
 			direction = Math.signum(destination.getX() - me.getPosition().getX());
 		}
 
 
+		// TODO possible to dodge a bullet
 		if (!destinationPath.isEmpty()) {
-			if (shoot) {
+			if (shoot && destinationPath.size() < 8) {
 				unitAction = new UnitAction(0,
 						false,
 						false, aim,
@@ -124,24 +126,40 @@ public class StrategyAttack implements UnitStrategy {
 		return closestWeapon;
 	}
 
-	Vec2Double shootAt(Unit unit, List<Edge> destinationPath, Game game, Vec2Double opponent, double averageTileLength) {
-		boolean shoot = unit.getWeapon() != null;
-		Vec2Double myPosition = unit.getPosition();
+	Vec2Double shootAt(Unit me, Game game, Vec2Double toShoot, double averageTileLength, Debug debug) {
+		boolean shoot = me.getWeapon() != null;
+		if (!shoot)
+			return ZERO;
 		Tile[][] tiles = game.getLevel().getTiles();
-		Vec2Double aim = ZERO;
 
-		for (Edge edge : destinationPath)
-			shoot &= WorldUtils.unitTile(edge.to, tiles) != Tile.WALL;
+		Vec2Double size = game.getProperties().getUnitSize();
+		Vec2Double mePos = me.getPosition();
+		Vec2Double weapPos = new Vec2Double(mePos.getX(), mePos.getY() + size.getY()/2);
+		double dX = (toShoot.getX() - weapPos.getX());
+		double dY = (toShoot.getY() - weapPos.getY());
+		double tan = Math.abs(dY/dX);
 
-		if (shoot) {
-			double minTilesToShot =
-					getWeaponRadius(game.getProperties(), unit.getWeapon().getTyp()) / averageTileLength;
-			double manhattanDistance = WorldUtils.distanceManhattan(new Vec2Int(opponent), new Vec2Int(myPosition));
-			if (manhattanDistance < Math.max(4, minTilesToShot))
-				aim = new Vec2Double(opponent.getX() - myPosition.getX(), opponent.getY() - myPosition.getY());
+		if (StrategyAttackRecovery.debugEnabled)
+			debug.draw(new CustomData.Line(WorldUtils.toFloat(weapPos), WorldUtils.toFloat(toShoot), .1f,
+					DebugUtils.toColorFloat(Color.CYAN)));
+
+		if (WorldUtils.distanceSqr(weapPos, toShoot) > 300)
+			return ZERO;
+
+		while (WorldUtils.distanceSqr(weapPos, toShoot) > averageTileLength*averageTileLength) {
+			weapPos = new Vec2Double(weapPos.getX() + Math.signum(dX), weapPos.getY() + Math.signum(dY)*tan);
+			Vec2Int ij = new Vec2Int(weapPos);
+			if (ij.x < 0 || ij.y < 0 || ij.x >= tiles.length || ij.y >= tiles[0].length || tiles[ij.x][ij.y] == Tile.WALL) {
+				shoot = false;
+				break;
+			}
 		}
 
-		return shoot ? aim : ZERO;
+		double minTilesToShot =
+				getWeaponRadius(game.getProperties(), me.getWeapon().getTyp()) / averageTileLength;
+		weapPos = new Vec2Double(mePos.getX() + size.getX() / 2, mePos.getY() + size.getY() / 2);
+		shoot &= minTilesToShot*minTilesToShot < WorldUtils.distanceSqr(weapPos, toShoot);
+		return shoot  ? new Vec2Double(toShoot.getX() - weapPos.getX(), toShoot.getY() - weapPos.getY()) : ZERO;
 	}
 
 	@Override
