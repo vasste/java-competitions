@@ -1,3 +1,5 @@
+package strategy.world;
+
 import model.Item;
 import model.LootBox;
 import model.Tile;
@@ -52,7 +54,7 @@ public class TestUtils {
 
 	public static List<LootBox> readLootBoxes(String fileName) {
 		try {
-			URL url = WorldTest.class.getResource(fileName);
+			URL url = TestUtils.class.getResource(fileName);
 			List<String> lines = Files.readAllLines(Paths.get(url.toURI())); // y
 			List<LootBox> lootBoxes = new ArrayList<>();
 			Vec2Double size = new Vec2Double(1, 1);
@@ -74,7 +76,7 @@ public class TestUtils {
 
 	public static Vec2Double findPosition(String fileName, char marker) {
 		try {
-			URL url = WorldTest.class.getResource(fileName);
+			URL url = TestUtils.class.getResource(fileName);
 			List<String> lines = Files.readAllLines(Paths.get(url.toURI())); // y
 			for (int j = lines.size() - 1; j >= 0; j--) {
 				String line = lines.get(j);
@@ -90,7 +92,7 @@ public class TestUtils {
 
 	public static Tile[][] readTiles(String fileName) {
 		try {
-			URL url = WorldTest.class.getResource(fileName);
+			URL url = TestUtils.class.getResource(fileName);
 			List<String> lines = Files.readAllLines(Paths.get(url.toURI())); // y
 			int xl = lines.get(0).length();
 			int yl = lines.size();

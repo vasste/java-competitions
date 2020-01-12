@@ -26,7 +26,7 @@ public class Runner {
         StrategyAttackRecovery myStrategy = new StrategyAttackRecovery();
         Debug debug = new Debug(outputStream);
         while (true) {
-//           long time = System.currentTimeMillis();
+            long time = System.currentTimeMillis();
             model.ServerMessageGame message = model.ServerMessageGame.readFrom(inputStream);
             model.PlayerView playerView = message.getPlayerView();
             if (playerView == null) {
@@ -40,7 +40,7 @@ public class Runner {
             }
             new model.PlayerMessageGame.ActionMessage(new model.Versioned(actions)).writeTo(outputStream);
             outputStream.flush();
-//            System.out.println((System.currentTimeMillis() - time) + ":" + playerView.getGame().getCurrentTick());
+            System.out.println((System.currentTimeMillis() - time) + ":" + playerView.getGame().getCurrentTick());
         }
     }
 

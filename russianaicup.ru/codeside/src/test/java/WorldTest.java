@@ -4,9 +4,9 @@ import model.Tile;
 import model.Vec2Double;
 import org.junit.Assert;
 import org.junit.Test;
-import strategy.Action;
-import strategy.world.Path;
 import strategy.world.Edge;
+import strategy.world.Path;
+import strategy.world.TestUtils;
 import strategy.world.World;
 
 import java.io.IOException;
@@ -16,7 +16,7 @@ public class WorldTest {
 
 	@Test
 	public void buildWorldTest() throws IOException {
-		String fileName = "level-jump*.txt";
+		String fileName = "/level-jump*.txt";
 		Tile[][] tiles = TestUtils.readTiles(fileName);
 		Vec2Double unit = TestUtils.findPosition(fileName, 'P');
 		Properties properties = new Properties();
@@ -26,7 +26,7 @@ public class WorldTest {
 		properties.setUnitJumpTime(5);
 		properties.setUnitSize(new Vec2Double(0.9, 1.8));
 		Vec2Double unitSpeed = new Vec2Double(0 ,0);
-		World world = new World(unit, unitSpeed, tiles, properties, 50, new Vec2Double(0, 0),
+		World world = new World(unit, tiles, properties, 50, new Vec2Double(0, 0),
 				true, new JumpState());
 		//List<LootBox> boxes = Utils.readLootBoxes(fileName);
 		World.TilePoint point = world.getStartPoint();

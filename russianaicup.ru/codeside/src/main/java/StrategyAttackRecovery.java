@@ -6,7 +6,7 @@ import java.util.Map;
 
 class StrategyAttackRecovery {
 
-	public static final boolean debugEnabled = true;
+	public static final boolean debugEnabled = false;
 	private Map<Integer, Unit> unitsInTick = new HashMap<>();
 	private Map<Integer, Integer> opponents = new HashMap<>();
 	private int tick;
@@ -23,15 +23,6 @@ class StrategyAttackRecovery {
 		UnitStrategy strategy = initGame(unit, game);
 		Unit unitInTick = initMove(unit, game);
 		JumpState state = unit.getJumpState();
-		double horzUnitSpeed = unit.getPosition().getX() - unitInTick.getPosition().getX();
-		double vertUnitSpeed = unit.getPosition().getY() - unitInTick.getPosition().getY();
-		Vec2Double unitSpeed = new Vec2Double(horzUnitSpeed,
-				!unit.isOnGround() && !state.isCanJump() ? vertUnitSpeed : state.getSpeed());
-
-		if (debugEnabled) {
-			debug.draw(DebugUtils.write(horzUnitSpeed + "", 1, 10));
-			debug.draw(DebugUtils.write(vertUnitSpeed + "", 1, 11f));
-		}
 
 		Level level = game.getLevel();
 		Tile[][] tiles = level.getTiles();
@@ -43,7 +34,7 @@ class StrategyAttackRecovery {
 				break;
 			}
 		}
-		World world = new World(unit.getPosition(), unitSpeed, tiles, game.getProperties(), tick < 30 ? tick : 30,
+		World world = new World(unit.getPosition(), tiles, game.getProperties(), tick < 30 ? tick : 30,
 				teamMateUnit == null ? null : teamMateUnit.getPosition(), unit.isOnGround(), state);
 		DebugUtils.drawGrid(debug, game, debugEnabled);
 		UnitAction unitAction;

@@ -22,20 +22,20 @@ public class World {
 	private Vec2Int partner;
 	private Vec2Double unitSize;
 
-	double maxSpeedStride = 1;
+	double maxSpeedStride = 1.8;
 	double minSpeedStride = .5;
 	double averageTileLength;
 
 	boolean onGround;
 
-	public World(Vec2Double unit, Vec2Double unitSpeed, Tile[][] tiles, Properties properties,
+	public World(Vec2Double unit, Tile[][] tiles, Properties properties,
 				 int maxDistance, Vec2Double partner, boolean onGround, JumpState jumpState) {
 		this.tiles = tiles;
 		this.jumpPadHeight = (int)(properties.getJumpPadJumpSpeed()*properties.getJumpPadJumpTime());
 		this.jumpHeight = (int)(properties.getUnitJumpSpeed()*properties.getUnitJumpTime());
 		this.averageTileLength = properties.getUnitSize().getY()/1.5; // 2 tiles
 		this.unitSize = properties.getUnitSize();
-		this.maxHorizontalSpeed = 7;
+		this.maxHorizontalSpeed = 4;
 		this.maxDistance = maxDistance;
 		this.partner = partner == null ? new Vec2Int(0, 0) : new Vec2Int(partner);
 		this.onGround = onGround;
@@ -174,10 +174,10 @@ public class World {
 								Action.JUMP_UP, minSpeedStride * j, maxSpeedStride * i, height);
 //					if (direction[1])
 //						direction[1] = addEdge(queue, from, WorldUtils.jump(WorldUtils.left(from, k), k),
-//								Action.JUMP_UP, minSpeedStride * j, maxSpeedStride * i, startSpeed);
+//								Action.JUMP_UP, minSpeedStride * j, maxSpeedStride * i, height);
 //					if (direction[2])
 //						direction[2] = addEdge(queue, from, WorldUtils.jump(WorldUtils.right(from, k), k),
-//								Action.JUMP_UP, minSpeedStride * j, maxSpeedStride * i, startSpeed);
+//								Action.JUMP_UP, minSpeedStride * j, maxSpeedStride * i, height);
 				}
 			}
 		}
