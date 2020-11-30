@@ -82,7 +82,7 @@ public class StrategyAttack implements UnitStrategy {
 		if (!destinationPath.isEmpty()) {
 			if (shoot && destinationPath.size() < 8) {
 				unitAction = new UnitAction(0,
-						game.getCurrentTick() % 2 == 0,
+						false,
 						false, aim,
 						shoot, simpleReloadStrategy(me),
 						manager.isWeaponType(me, WeaponType.ROCKET_LAUNCHER) ||
@@ -107,6 +107,10 @@ public class StrategyAttack implements UnitStrategy {
 		}
 
 		return unitAction;
+
+	}
+
+	private List<Edge> findDodgePath() {
 
 	}
 
@@ -147,6 +151,7 @@ public class StrategyAttack implements UnitStrategy {
 		if (WorldUtils.distanceSqr(weapPos, toShoot) > 300)
 			return ZERO;
 
+		weapPos = new Vec2Double(mePos.getX() * -Math.signum(dX)*size.getX()/2, mePos.getY() + size.getY() / 2);
 		while (WorldUtils.distanceSqr(weapPos, toShoot) > averageTileLength*averageTileLength) {
 			weapPos = new Vec2Double(weapPos.getX() + Math.signum(dX), weapPos.getY() + Math.signum(dY)*tan);
 			Vec2Int ij = new Vec2Int(weapPos);
@@ -158,7 +163,7 @@ public class StrategyAttack implements UnitStrategy {
 
 		double minTilesToShot =
 				getWeaponRadius(game.getProperties(), me.getWeapon().getTyp()) / averageTileLength;
-		weapPos = new Vec2Double(mePos.getX() + size.getX() / 2, mePos.getY() + size.getY() / 2);
+		weapPos = new Vec2Double(mePos.getX(), mePos.getY() + size.getY() / 2);
 		WeaponParams weaponParams = game.getProperties().getWeaponParams().get(me.getWeapon().getTyp());
 		double avrSpread = (weaponParams.getMaxSpread() + weaponParams.getMinSpread())/2;
 		shoot &= minTilesToShot*minTilesToShot < WorldUtils.distanceSqr(weapPos, toShoot) &&

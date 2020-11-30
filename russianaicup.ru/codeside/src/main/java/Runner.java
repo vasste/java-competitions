@@ -40,7 +40,9 @@ public class Runner {
             }
             new model.PlayerMessageGame.ActionMessage(new model.Versioned(actions)).writeTo(outputStream);
             outputStream.flush();
-            System.out.println((System.currentTimeMillis() - time) + ":" + playerView.getGame().getCurrentTick());
+            long workTime = System.currentTimeMillis() - time;
+            if (workTime > 26)
+                System.out.println(playerView.getGame().getCurrentTick());
         }
     }
 

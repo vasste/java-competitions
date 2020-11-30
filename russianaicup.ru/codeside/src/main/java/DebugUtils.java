@@ -31,8 +31,8 @@ public class DebugUtils {
 	}
 
 	static CustomData.Line createLine(World.TilePoint from, World.TilePoint to) {
-		return new CustomData.Line(toFloat(new Vec2Int(from)), toFloat(new Vec2Int(to)), .2f,
-				toColorFloat(Color.GREEN));
+		return new CustomData.Line(toFloat(new Vec2Double(from.x + .5, from.y + .5)),
+				toFloat(new Vec2Double(to.x + .5, to.y + .5)), .1f, toColorFloat(Color.GREEN));
 	}
 
 	static CustomData.PlacedText write(String text, float x, float y) {

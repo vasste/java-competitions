@@ -1,12 +1,14 @@
 import model.*;
+import strategy.Vec2Int;
 import strategy.world.World;
+import strategy.world.WorldUtils;
 
 import java.util.HashMap;
 import java.util.Map;
 
 class StrategyAttackRecovery {
 
-	public static final boolean debugEnabled = false;
+	public static final boolean debugEnabled = true;
 	private Map<Integer, Unit> unitsInTick = new HashMap<>();
 	private Map<Integer, Integer> opponents = new HashMap<>();
 	private int tick;
@@ -21,7 +23,7 @@ class StrategyAttackRecovery {
 
 	public UnitAction getAction(Unit unit, Game game, Debug debug) {
 		UnitStrategy strategy = initGame(unit, game);
-		Unit unitInTick = initMove(unit, game);
+		Unit unitInTick = initMove(unit);
 		JumpState state = unit.getJumpState();
 
 		Level level = game.getLevel();
@@ -34,7 +36,16 @@ class StrategyAttackRecovery {
 				break;
 			}
 		}
-		World world = new World(unit.getPosition(), tiles, game.getProperties(), tick < 30 ? tick : 30,
+		Unit opponent = findOpponent(unit, game);
+		if (opponent == null && teamMateUnit != null)
+			opponent = findOpponent(teamMateUnit, game);
+
+		int radius = Math.min(tick, 30);
+		if (opponent != null && unit.getWeapon() != null)
+			radius = Math.min(radius,
+					WorldUtils.distanceManhattan(new Vec2Int(opponent.getPosition()), new Vec2Int(unit.getPosition())));
+
+		World world = new World(unit.getPosition(), tiles, game.getProperties(), radius,
 				teamMateUnit == null ? null : teamMateUnit.getPosition(), unit.isOnGround(), state);
 		DebugUtils.drawGrid(debug, game, debugEnabled);
 		UnitAction unitAction;
@@ -47,7 +58,7 @@ class StrategyAttackRecovery {
 		return unitAction;
 	}
 
-	private Unit initMove(Unit unit, Game game) {
+	private Unit initMove(Unit unit) {
 		return unitsInTick.getOrDefault(unit.getId(), unit);
 	}
 

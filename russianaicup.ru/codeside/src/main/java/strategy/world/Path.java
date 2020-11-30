@@ -21,6 +21,8 @@ public class Path {
 	}
 
 	private List<Edge> tryFind(Vec2Double to) {
+		if (to.getX() < 0 || to.getY() < 0)
+			return Collections.emptyList();
 		PriorityQueue<Node> pq = new PriorityQueue<>();
 		Set<Node> settled = new HashSet<>();
 		double[][] cost = WorldUtils.startDetourValues(tilePoints, Integer.MAX_VALUE);
